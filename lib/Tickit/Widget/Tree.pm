@@ -35,6 +35,25 @@ Simple tree widget. See examples in main source for more info.
 
 =cut
 
+=head2 new
+
+Instantiate new tree.
+
+Takes the following named parameters:
+
+=over 4
+
+=item * root - the root widget for this tree (optional)
+
+=item * parent - the parent widget (optional)
+
+=item * line_style - type of line used, see L</LINE STYLES> (optional)
+
+=item * label - 
+=back
+
+=cut
+
 sub new {
 	my $class = shift;
 	my %args = @_;
@@ -45,6 +64,8 @@ sub new {
 	$args{line_style} ||= $parent->{line_style} if $parent;
 	$args{line_style} ||= $root->{line_style} if $root;
 	$args{line_style} ||= 'ascii';
+	$args{is_open} ||= 0;
+	$args{last} ||= 1;
 	$self->{$_} = $args{$_} for qw(label is_open last prev next line_style);
 	$self->update_root_and_parent(
 		root	=> $root,
@@ -145,9 +166,17 @@ sub add {
 	my $self = shift;
 	my $child = shift;
 	die "bad child" unless $child->isa(ref $self);
+
+	my $prev = $self->{children}[-1];
+
+# Add to queue
 	push @{$self->{children}}, $child;
-	$child->{parent} ||= $self;
+
+# Try to send the on_add signal
 	$_->($child, $self) for grep defined, map $child->can($_), qw(on_add);
+
+# Update last child to let it know that there's another widget following it now
+	$prev->{last} = 0 if $prev;
 	$self->resized;
 	$self;
 }
@@ -432,6 +461,7 @@ sub on_add {
 	my $self = shift;
 	my $parent = shift;
 	$self->update_root_and_parent(parent => $parent);
+	$self->{last} = 1;
 	return $self;
 }
 
