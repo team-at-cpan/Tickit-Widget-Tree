@@ -15,8 +15,21 @@ Tickit::Widget::Tree - support for an expandable tree widget
 
 =head1 SYNOPSIS
 
+ my $tree = Tickit::Widget::Tree->new(
+ 	is_open => 1,
+ 	last => 1,
+ 	label => 'Root',
+ 	line_style => 'single',
+ );
+ $tree->add(Tickit::Widget::Tree->new(
+ 	is_open => 1,
+ 	last => 1,
+ 	label => 'First',
+ ));
+
 =head1 DESCRIPTION
 
+Simple tree widget. See examples in main source for more info.
 
 =head1 METHODS
 
@@ -26,20 +39,17 @@ sub new {
 	my $class = shift;
 	my %args = @_;
 	my $root = delete $args{root};
+	my $parent = delete $args{parent};
 	my $self = $class->SUPER::new(%args);
 	$self->{children} ||= [];
-	unless($root) {
-		$root = $self;
-		$self->{highlighted} = $self;
-		$args{prev} = $self;
-		$args{next} = $self;
-	}
-	$args{root} = $root;
-	$args{line_style} ||= $root->{line_style};
+	$args{line_style} ||= $parent->{line_style} if $parent;
+	$args{line_style} ||= $root->{line_style} if $root;
 	$args{line_style} ||= 'ascii';
-
-	$self->{$_} = $args{$_} for qw(label is_open last root parent prev next line_style);
-	$args{parent} = $self;
+	$self->{$_} = $args{$_} for qw(label is_open last prev next line_style);
+	$self->update_root_and_parent(
+		root	=> $root,
+		parent	=> $parent
+	);
 	if(my $children = delete $args{children}) {
 		foreach (@$children) {
 			$self->add(my $child = $class->new(%args, %$_) or die "fail?");
@@ -137,6 +147,8 @@ sub add {
 	die "bad child" unless $child->isa(ref $self);
 	push @{$self->{children}}, $child;
 	$child->{parent} ||= $self;
+	$_->($child, $self) for grep defined, map $child->can($_), qw(on_add);
+	$self->resized;
 	$self;
 }
 
@@ -147,7 +159,6 @@ sub rebuild {
 	$node->{next} = $self;
 	return $self unless $self->is_open && $self->children;
 	$node = $self;
-	
 	$node = $_->rebuild($node) for $self->children;
 	return $node;
 }
@@ -162,6 +173,7 @@ sub rebuild_all {
 	$node->{next} = $root;
 	$root->{prev} = $node;
 	$root->highlight unless $root->highlighted;
+	$self->resized;
 }
 
 sub children { @{ shift->{children} || [] } }
@@ -173,13 +185,11 @@ sub prefix_text {
 		return ' | ';
 	} elsif($self->{line_style} eq 'compact_ascii') {
 		return '|';
-	} elsif($self->{line_style} eq 'line1') {
+	} elsif($self->{line_style} eq 'single') {
 		return '│';
-	} elsif($self->{line_style} eq 'line2') {
+	} elsif($self->{line_style} eq 'double') {
 		return '║';
-	} elsif($self->{line_style} eq 'line3') {
-		return '┃';
-	} elsif($self->{line_style} eq 'line3') {
+	} elsif($self->{line_style} eq 'thick') {
 		return '┃';
 	} else {
 		return 'ERR';
@@ -196,7 +206,7 @@ sub render {
 		$txt = '[' . ($self->is_open ? '-' : '+') . ']';
 	} elsif($self->{line_style} eq 'compact_ascii') {
 		$txt = ($self->is_open ? '-' : '+');
-	} elsif($self->{line_style} eq 'line1') {
+	} elsif($self->{line_style} eq 'single') {
 		$txt = $self->{last} ? '└' : '├'; # : '└');
 		if($self->children && $self->is_open) {
 			$txt .= '┬';
@@ -205,10 +215,10 @@ sub render {
 		} else {
 			$txt .= '   ';
 		}
-	} elsif($self->{line_style} eq 'line2') {
+	} elsif($self->{line_style} eq 'double') {
 		$txt = $self->{last} ? '╚' : '╠';
 		$txt .= '╗' if $self->children && $self->is_open;
-	} elsif($self->{line_style} eq 'line3') {
+	} elsif($self->{line_style} eq 'thick') {
 		$txt = $self->{last} ? '┗' : '┣';
 		$txt .= '┓' if $self->children && $self->is_open;
 	} else {
@@ -263,22 +273,65 @@ sub rerender {
 	return unless $self->window;
 	$self->window->clear if $self->root eq $self;
 	$self->redraw;
-#	return unless $self->is_open;
-#	$_->rerender for $self->children;
-#	$self->redraw;
 }
 
-sub root { shift->{root} }
+sub root {
+	my $self = shift;
+	if(@_) {
+		$self->update_root_and_parent(
+			root	=> shift
+		);
+		return $self;
+	}
+	return $self->{root};
+}
+sub parent {
+	my $self = shift;
+	if(@_) {
+		$self->update_root_and_parent(
+			parent	=> shift
+		);
+		return $self;
+	}
+	return $self->{parent};
+}
+
+sub update_root_and_parent {
+	my $self = shift;
+	my %args = @_;
+	my $old_root = $self->root;
+	my $parent = delete $args{parent};
+	my $root = delete $args{root};
+	die "Parent does not match root" if $parent && $root && $parent->root != $root;
+
+	$root ||= $parent->root if $parent;
+	$parent ||= $root;
+
+	unless($root) {
+		$root = $self;
+		$self->{highlighted} = $self;
+		$args{prev} = $self;
+		$args{next} = $self;
+	}
+	$self->{parent} = $parent;
+	$self->{root} = $root;
+	unless($self->{line_style} eq $root->{line_style}) {
+		$self->{line_style} = $root->{line_style};
+		$self->redraw;
+	}
+	return $self;
+}
+
 sub on_key {
 	my $self = shift;
 	my ($type, $str, $key) = @_;
 	if($type eq 'key' && $str eq 'Down') {
 		$self->highlight_next($self);
-		$self->root->rerender;
+		$self->rerender;
 		return 1;
 	} elsif($type eq 'key' && $str eq 'Up') {
 		$self->highlight_prev($self);
-		$self->root->rerender;
+		$self->rerender;
 		return 1;
 	} elsif($type eq 'text' && $str eq 'A') {
 		my @pending = $self->root;
@@ -289,8 +342,7 @@ sub on_key {
 			$node->{is_open} = 1;
 		}
 		$self->rebuild_all;
-		$self->root->reapply_windows;
-		$self->root->rerender;
+		$self->root->resized;
 		return 1;
 	} elsif($type eq 'text' && $str eq 'a') {
 		my @pending = $self->root;
@@ -301,20 +353,17 @@ sub on_key {
 			$node->{is_open} = 0;
 		}
 		$self->rebuild_all;
-		$self->root->reapply_windows;
-		$self->root->rerender;
+		$self->root->resized;
 		return 1;
 	} elsif($type eq 'text' && $str eq '+') {
 		$self->highlighted->{is_open} = 1;
 		$self->rebuild_all;
-		$self->root->reapply_windows;
-		$self->root->rerender;
+		$self->resized;
 		return 1;
 	} elsif($type eq 'text' && $str eq '-') {
 		$self->highlighted->{is_open} = 0;
 		$self->rebuild_all;
-		$self->root->reapply_windows;
-		$self->root->rerender;
+		$self->resized;
 		return 1;
 	} elsif($type eq 'text' && $str eq 'r') {
 		$self->rebuild_all;
@@ -378,6 +427,14 @@ sub _updated_on_key {
 
 	return 0;
 }
+
+sub on_add {
+	my $self = shift;
+	my $parent = shift;
+	$self->update_root_and_parent(parent => $parent);
+	return $self;
+}
+
 1;
 
 __END__
