@@ -50,6 +50,7 @@ Takes the following named parameters:
 =item * line_style - type of line used, see L</LINE STYLES> (optional)
 
 =item * label - 
+
 =back
 
 =cut
