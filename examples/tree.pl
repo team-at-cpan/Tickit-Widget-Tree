@@ -35,18 +35,30 @@ sub new {
 		line_style => 'single',
 	);
 	$tree->add(Tickit::Widget::Tree->new(
+		parent => $tree,
 		is_open => 1,
-		last => 1,
+		last => 0,
 		label => 'First',
-	)->add(Tickit::Widget::Tree->new(
+	));
+	$tree->add(Tickit::Widget::Tree->new(
+		parent => $tree,
+		is_open => 1,
+		last => 0,
+		label => 'Next entry',
+	));
+	$tree->add(Tickit::Widget::Tree->new(
+		parent => $tree,
 		is_open => 0,
 		last => 1,
 		label => 'First child',
-	)));
+	));
 
 	$holder->add($tree, expand => 0.5);
 	$holder->add($messages, expand => 0.5);
 	$report->('Added widgets');
+	$tree->resized;
+	$tree->root->rebuild_all;
+	$report->('Rebuilt tree');
 	return $self;
 }
 

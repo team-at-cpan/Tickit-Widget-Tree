@@ -47,9 +47,9 @@ Takes the following named parameters:
 
 =item * parent - the parent widget (optional)
 
-=item * line_style - type of line used, see L</LINE STYLES> (optional)
+=item * line_style - type of line used, see L</LINE STYLES> (optional, defaults to single)
 
-=item * label - 
+=item * label - the text label to use for this tree entry
 
 =back
 
@@ -60,13 +60,17 @@ sub new {
 	my %args = @_;
 	my $root = delete $args{root};
 	my $parent = delete $args{parent};
+	$root ||= $parent->root if $parent;
 	my $self = $class->SUPER::new(%args);
 	$self->{children} ||= [];
+
 	$args{line_style} ||= $parent->{line_style} if $parent;
 	$args{line_style} ||= $root->{line_style} if $root;
-	$args{line_style} ||= 'ascii';
+	$args{line_style} ||= 'single';
+
 	$args{is_open} ||= 0;
 	$args{last} ||= 1;
+
 	$self->{$_} = $args{$_} for qw(label is_open last prev next line_style);
 	$self->update_root_and_parent(
 		root	=> $root,
@@ -79,9 +83,15 @@ sub new {
 		}
 		$self->reapply_windows;
 	}
-	die "no line style" unless $self->{line_style};
 	return $self;
 }
+
+=head2 lines
+
+Returns the number of lines used by this node. Will be the label height
+unless the widget is open.
+
+=cut
 
 sub lines {
 	my $self = shift;
@@ -90,9 +100,26 @@ sub lines {
 	$lines += sum 0, map 0+$_->lines, $self->children;
 	return $lines;
 }
+
+=head2 cols
+
+Number of cols for autocalculation. We're flexible, so we just use the default 1.
+
+=cut
+
 sub cols { my $self = shift; 1; }
 
+=head2 is_open
+
+Returns true if this node is open, false if not.
+
+=cut
+
 sub is_open { shift->{is_open} }
+
+=head2 window_gained
+
+=cut
 
 sub window_gained {
 	my $self = shift;
@@ -101,28 +128,34 @@ sub window_gained {
 
 	my $win = $self->window;
 	$self->rebuild_all;
-	return unless $self->is_open;
+#	return unless $self->is_open;
 	return $self->reapply_windows;
 }
+
+=head2 reapply_windows
+
+=cut
 
 sub reapply_windows {
 	my $self = shift;
 	my $win = $self->window or return;
-	$_->set_window(undef) for $self->children;
-	return unless $self->is_open;
+	unless($self->is_open) {
+		$_->set_window(undef) for $self->children;
+		return;
+	}
 	my $prefix_len = length $self->prefix_text;
 	my $y = 1;
 	my @tasks;
 	CHILD:
 	for my $child ($self->children) {
-		my $height = ($child->is_open ? $child->lines : 1);
+		my $height = $child->lines;
 #		last CHILD unless ($y + $height) < ($self->window ? $self->window->lines : $self->lines);
 
 		push @tasks, [ $child, ($child->window ? 'change' : 'create'), 
 			$y,
 			$prefix_len,
 			$height,
-			($self->window ? $self->window->cols : $self->cols) - $prefix_len
+			$win->cols - $prefix_len
 		];
 		$y += $height;
 	}
@@ -163,10 +196,14 @@ sub insert_after {
 	Scalar::Util::weaken($next->{prev} = $v);
 }
 
+=head2 add
+
+=cut
+
 sub add {
 	my $self = shift;
 	my $child = shift;
-	die "bad child" unless $child->isa(ref $self);
+	die "bad child" unless $child->isa(ref $self) || $self->isa(ref $child);
 
 	my $prev = $self->{children}[-1];
 
@@ -182,9 +219,13 @@ sub add {
 	$self;
 }
 
+=head2 rebuild
+
+=cut
+
 sub rebuild {
 	my $self = shift;
-	my $node = shift;
+	my $node = shift or die 'nodes';
 	$self->{prev} = $node;
 	$node->{next} = $self;
 	return $self unless $self->is_open && $self->children;
@@ -192,6 +233,10 @@ sub rebuild {
 	$node = $_->rebuild($node) for $self->children;
 	return $node;
 }
+
+=head2 rebuild_all
+
+=cut
 
 sub rebuild_all {
 	my $self = shift;
@@ -206,8 +251,21 @@ sub rebuild_all {
 	$self->resized;
 }
 
+=head2 children
+
+=cut
+
 sub children { @{ shift->{children} || [] } }
+
+=head2 is_highlighted
+
+=cut
+
 sub is_highlighted { shift->{is_highlighted} }
+
+=head2 prefix_text
+
+=cut
 
 sub prefix_text {
 	my $self = shift;
@@ -216,15 +274,19 @@ sub prefix_text {
 	} elsif($self->{line_style} eq 'compact_ascii') {
 		return '|';
 	} elsif($self->{line_style} eq 'single') {
-		return '│';
+		return ' │';
 	} elsif($self->{line_style} eq 'double') {
-		return '║';
+		return ' ║';
 	} elsif($self->{line_style} eq 'thick') {
-		return '┃';
+		return ' ┃';
 	} else {
 		return 'ERR';
 	}
 }
+
+=head2 render
+
+=cut
 
 sub render {
 	my $self = shift;
@@ -239,7 +301,7 @@ sub render {
 	} elsif($self->{line_style} eq 'single') {
 		$txt = $self->{last} ? '└' : '├'; # : '└');
 		if($self->children && $self->is_open) {
-			$txt .= '┬';
+			$txt .= '─┬ ';
 		} elsif($self->children) {
 			$txt .= '[' . ($self->is_open ? '-' : '+') . ']';
 		} else {
@@ -247,14 +309,26 @@ sub render {
 		}
 	} elsif($self->{line_style} eq 'double') {
 		$txt = $self->{last} ? '╚' : '╠';
-		$txt .= '╗' if $self->children && $self->is_open;
+		if($self->children && $self->is_open) {
+			$txt .= '═╦ ';
+		} elsif($self->children) {
+			$txt .= '[' . ($self->is_open ? '-' : '+') . ']';
+		} else {
+			$txt .= '   ';
+		}
 	} elsif($self->{line_style} eq 'thick') {
 		$txt = $self->{last} ? '┗' : '┣';
-		$txt .= '┓' if $self->children && $self->is_open;
+		if($self->children && $self->is_open) {
+			$txt .= '━┳ ';
+		} elsif($self->children) {
+			$txt .= '[' . ($self->is_open ? '-' : '+') . ']';
+		} else {
+			$txt .= '   ';
+		}
 	} else {
 		$txt = 'ERR';
 	}
-	$win->print($txt . ' ');
+	$win->print($txt);
 
 	my $lbl = $self->{label} // 'undef';
 	$lbl = substrwidth $lbl, 0, $win->cols;
@@ -274,36 +348,76 @@ sub render {
 	$_->render for $self->children;
 }
 
+=head2 highlighted
+
+=cut
+
 sub highlighted {
 	my $self = shift;
 	return $self->root->{highlighted} || $self->root;
 }
+
+=head2 label
+
+=cut
+
 sub label { shift->{label} }
+
+=head2 highlight
+
+=cut
+
 sub highlight {
 	my $self = shift;
-#	$self->window->print( "Highlight " . $self->label);
 	$self->highlighted->{is_highlighted} = 0;
 	$self->{is_highlighted} = 1;
 	Scalar::Util::weaken($self->root->{highlighted} = $self);
 }
 
+=head2 prev
+
+=cut
 
 sub prev { shift->{prev} }
+
+=head2 next
+
+=cut
+
 sub next { shift->{next} }
+
+=head2 highlight_next
+
+=cut
+
 sub highlight_next {
 	my $self = shift;
 	$self->highlighted->next->highlight;
 }
+
+=head2 highlight_prev
+
+=cut
+
 sub highlight_prev {
 	my $self = shift;
 	$self->highlighted->prev->highlight;
 }
+
+=head2 rerender
+
+=cut
+
 sub rerender {
 	my $self = shift;
 	return unless $self->window;
 	$self->window->clear if $self->root eq $self;
 	$self->redraw;
 }
+
+=head2 root
+
+=cut
 
 sub root {
 	my $self = shift;
@@ -315,6 +429,11 @@ sub root {
 	}
 	return $self->{root};
 }
+
+=head2 parent
+
+=cut
+
 sub parent {
 	my $self = shift;
 	if(@_) {
@@ -325,6 +444,10 @@ sub parent {
 	}
 	return $self->{parent};
 }
+
+=head2 update_root_and_parent
+
+=cut
 
 sub update_root_and_parent {
 	my $self = shift;
@@ -351,6 +474,10 @@ sub update_root_and_parent {
 	}
 	return $self;
 }
+
+=head2 on_key
+
+=cut
 
 sub on_key {
 	my $self = shift;
@@ -386,14 +513,10 @@ sub on_key {
 		$self->root->resized;
 		return 1;
 	} elsif($type eq 'text' && $str eq '+') {
-		$self->highlighted->{is_open} = 1;
-		$self->rebuild_all;
-		$self->resized;
+		$self->highlighted->open;
 		return 1;
 	} elsif($type eq 'text' && $str eq '-') {
-		$self->highlighted->{is_open} = 0;
-		$self->rebuild_all;
-		$self->resized;
+		$self->highlighted->close;
 		return 1;
 	} elsif($type eq 'text' && $str eq 'r') {
 		$self->rebuild_all;
@@ -414,7 +537,39 @@ sub on_key {
 	return 0;
 }
 
+=head2 open
+
+=cut
+
+sub open {
+	my $self = shift;
+	$self->{is_open} = 1;
+	$self->resized;
+	$self->root->rebuild_all;
+	return $self;
+}
+
+=head2 close
+
+=cut
+
+sub close {
+	my $self = shift;
+	$self->{is_open} = 0;
+	$self->resized;
+	$self->root->rebuild_all;
+	return $self;
+}
+
+=head2 child_resized
+
+=cut
+
 sub child_resized { }
+
+=head2 bind_keys
+
+=cut
 
 sub bind_keys {
 	my $self = shift;
@@ -457,6 +612,10 @@ sub _updated_on_key {
 
 	return 0;
 }
+
+=head2 on_add
+
+=cut
 
 sub on_add {
 	my $self = shift;
