@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use parent qw(Tickit::Widget);
 use List::Util qw(sum);
+use Scalar::Util qw(blessed);
 use Tickit::Utils qw(substrwidth);
 use utf8;
 
@@ -64,14 +65,10 @@ sub new {
 	my $self = $class->SUPER::new(%args);
 	$self->{children} ||= [];
 
-	$args{line_style} ||= $parent->{line_style} if $parent;
-	$args{line_style} ||= $root->{line_style} if $root;
-	$args{line_style} ||= 'single';
-
 	$args{is_open} ||= 0;
 	$args{last} ||= 1;
 
-	$self->{$_} = $args{$_} for qw(label is_open last prev next line_style);
+	$self->{$_} = delete $args{$_} for grep exists $args{$_}, qw(label is_open last prev next line_style);
 	$self->update_root_and_parent(
 		root	=> $root,
 		parent	=> $parent
@@ -80,6 +77,7 @@ sub new {
 		foreach (@$children) {
 			$self->add(my $child = $class->new(%args, %$_) or die "fail?");
 			my $prefix_len = length($self->prefix_text);
+			# TODO - remember what was going to happen here
 		}
 		$self->reapply_windows;
 	}
@@ -203,7 +201,7 @@ sub insert_after {
 sub add {
 	my $self = shift;
 	my $child = shift;
-	die "bad child" unless $child->isa(ref $self) || $self->isa(ref $child);
+	die "bad child" unless $child->isa(__PACKAGE__);
 
 	my $prev = $self->{children}[-1];
 
@@ -269,18 +267,19 @@ sub is_highlighted { shift->{is_highlighted} }
 
 sub prefix_text {
 	my $self = shift;
-	if($self->{line_style} eq 'ascii') {
+	my $style = $self->line_style;
+	if($style eq 'ascii') {
 		return ' | ';
-	} elsif($self->{line_style} eq 'compact_ascii') {
+	} elsif($style eq 'compact_ascii') {
 		return '|';
-	} elsif($self->{line_style} eq 'single') {
+	} elsif($style eq 'single') {
 		return ' │';
-	} elsif($self->{line_style} eq 'double') {
+	} elsif($style eq 'double') {
 		return ' ║';
-	} elsif($self->{line_style} eq 'thick') {
+	} elsif($style eq 'thick') {
 		return ' ┃';
 	} else {
-		return 'ERR';
+		die "No line_style found for $self\n";
 	}
 }
 
@@ -294,11 +293,12 @@ sub render {
 
 	$win->goto(0,0);
 	my $txt = '';
-	if($self->{line_style} eq 'ascii') {
+	my $style = $self->line_style or die "No line style for $self";
+	if($style eq 'ascii') {
 		$txt = '[' . ($self->is_open ? '-' : '+') . ']';
-	} elsif($self->{line_style} eq 'compact_ascii') {
+	} elsif($style eq 'compact_ascii') {
 		$txt = ($self->is_open ? '-' : '+');
-	} elsif($self->{line_style} eq 'single') {
+	} elsif($style eq 'single') {
 		$txt = $self->{last} ? '└' : '├'; # : '└');
 		if($self->children && $self->is_open) {
 			$txt .= '─┬ ';
@@ -307,7 +307,7 @@ sub render {
 		} else {
 			$txt .= '   ';
 		}
-	} elsif($self->{line_style} eq 'double') {
+	} elsif($style eq 'double') {
 		$txt = $self->{last} ? '╚' : '╠';
 		if($self->children && $self->is_open) {
 			$txt .= '═╦ ';
@@ -316,7 +316,7 @@ sub render {
 		} else {
 			$txt .= '   ';
 		}
-	} elsif($self->{line_style} eq 'thick') {
+	} elsif($style eq 'thick') {
 		$txt = $self->{last} ? '┗' : '┣';
 		if($self->children && $self->is_open) {
 			$txt .= '━┳ ';
@@ -468,10 +468,6 @@ sub update_root_and_parent {
 	}
 	$self->{parent} = $parent;
 	$self->{root} = $root;
-	unless($self->{line_style} eq $root->{line_style}) {
-		$self->{line_style} = $root->{line_style};
-		$self->redraw;
-	}
 	return $self;
 }
 
@@ -623,6 +619,39 @@ sub on_add {
 	$self->update_root_and_parent(parent => $parent);
 	$self->{last} = 1;
 	return $self;
+}
+
+=head2 line_style
+
+=cut
+
+sub line_style {
+	my $self = shift;
+	if(@_) {
+		$self->{line_style} = shift;
+		return $self;
+	}
+	return $self->{line_style} if exists $self->{line_style};
+	return $self->parent->line_style if $self->parent && $self->parent->isa(__PACKAGE__);
+	return $self->root->line_style if $self->root && $self->root != $self;
+
+# Fallback default
+	return 'single';
+}
+
+=head2 is_valid_tree_node
+
+Returns 1 if this is a valid tree node, 0 if not.
+
+A 'valid tree node' is defined as an object which is a subclass or instance
+of the L<Tickit::Widget::Tree> class.
+
+=cut
+
+sub is_valid_tree_node {
+	my $self = shift;
+	my $node = shift;
+	return +(blessed($node) && $node->isa(__PACKAGE__)) ? 1 : 0;
 }
 
 1;
