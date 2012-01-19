@@ -1,6 +1,9 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	Inherit open/closed state from parent if not otherwise specified.
+	Clean up styling for single line layout.
+	Call insert_after when adding widgets.
 
 0.001     2011-11-28 00:00:15 Europe/London
 	Initial CPAN release

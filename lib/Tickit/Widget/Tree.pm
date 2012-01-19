@@ -8,7 +8,7 @@ use Scalar::Util qw(blessed);
 use Tickit::Utils qw(substrwidth);
 use utf8;
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 =head1 NAME
 
@@ -65,7 +65,6 @@ sub new {
 	my $self = $class->SUPER::new(%args);
 	$self->{children} ||= [];
 
-	$args{is_open} ||= 0;
 	$args{last} ||= 1;
 
 	$self->{$_} = delete $args{$_} for grep exists $args{$_}, qw(label is_open last prev next line_style);
@@ -82,6 +81,85 @@ sub new {
 		$self->reapply_windows;
 	}
 	return $self;
+}
+
+=head2 prev
+
+The 'previous element' is determined as follows:
+
+=over 4
+
+=item * If we have a previous sibling:
+
+=over 4
+
+=item * If the previous sibling is open and has children, returns the last of those
+
+=item * If the previous sibling is closed or empty, returns it (the previous sibling)
+
+=back
+
+=item * If we have a parent and no previous sibling(s):
+
+=over 4
+
+=item * Return the parent
+
+=back
+
+=item * Return ourselves
+
+=back
+
+=cut
+
+sub prev {
+	my $self = shift;
+	if(my $prev = $self->prev_sibling) {
+		return $prev if $prev->is_closed;
+		my ($last_sibling_child) = ($prev->children)[-1];
+		return $last_sibling_child if $last_sibling_child;
+		return $prev;
+	}
+	return $self->parent if $self->parent;
+	return $self;
+}
+
+sub prev_sibling { shift->{prev_sibling} }
+sub next_sibling { shift->{next_sibling} }
+
+=head2 next
+
+The 'next element' is determined as follows:
+
+=over 4
+
+=item * If we're open and have children, next is the first child element.
+
+=item * If we're closed or empty, next is the next sibling at our current level.
+
+=item * If there's no next sibling, call the parent's L</next> method.
+
+=item * If there's no parent, return $self.
+
+=back
+
+=cut
+
+sub next {
+	my $self = shift;
+	return $self->first_child if $self->is_open && $self->has_children;
+	return $self->next_ignore_children(@_);
+}
+
+sub next_ignore_children {
+	my $self = shift;
+	my $ns = $self->next_sibling;
+	return $ns if $ns;
+	my $parent = $self->parent or return $self;
+	my $suggested = $parent->next_ignore_children(@_);
+	return $self if $suggested == $self->parent;
+	return $suggested;
 }
 
 =head2 lines
@@ -111,9 +189,19 @@ sub cols { my $self = shift; 1; }
 
 Returns true if this node is open, false if not.
 
+If open state is undefined, then we inherit from the parent if we have one,
+or return 0 as a fallback.
+
 =cut
 
-sub is_open { shift->{is_open} }
+sub is_open {
+	my $self = shift;
+	return $self->{is_open} if defined $self->{is_open};
+	return $self->parent->is_open if $self->parent;
+	return 1;
+}
+
+sub is_closed { !shift->is_open }
 
 =head2 window_gained
 
@@ -157,7 +245,7 @@ sub reapply_windows {
 		];
 		$y += $height;
 	}
-	$win->resize( $y, $win->cols);
+	$win->resize($y, $win->cols);
 	foreach (@tasks) {
 		my ($child, $type, @args) = @$_;
 		if($type eq 'create') {
@@ -180,6 +268,8 @@ Takes over $self->next, including backlink from $self->next->prev.
 sub insert_after {
 	my $self = shift;
 	my $v = shift;
+	$self->{next_sibling} = $v;
+	$v->{prev_sibling} = $self;
 
 # Take a copy of the next in the chain
 	my $next = $self->{next};
@@ -192,6 +282,7 @@ sub insert_after {
 	Scalar::Util::weaken($v->{next} = $next);
 # Update backlink from next in chain back to the new value
 	Scalar::Util::weaken($next->{prev} = $v);
+	return $self;
 }
 
 =head2 add
@@ -204,6 +295,7 @@ sub add {
 	die "bad child" unless $child->isa(__PACKAGE__);
 
 	my $prev = $self->{children}[-1];
+	$prev->insert_after($child) if $prev;
 
 # Add to queue
 	push @{$self->{children}}, $child;
@@ -255,6 +347,10 @@ sub rebuild_all {
 
 sub children { @{ shift->{children} || [] } }
 
+sub has_children { @{ shift->{children} || [] } ? 1 : 0 }
+sub first_child { shift->{children}[0] }
+sub last_child { shift->{children}[-1] }
+
 =head2 is_highlighted
 
 =cut
@@ -273,7 +369,7 @@ sub prefix_text {
 	} elsif($style eq 'compact_ascii') {
 		return '|';
 	} elsif($style eq 'single') {
-		return ' │';
+		return '│ ';
 	} elsif($style eq 'double') {
 		return ' ║';
 	} elsif($style eq 'thick') {
@@ -305,7 +401,7 @@ sub render {
 		} elsif($self->children) {
 			$txt .= '[' . ($self->is_open ? '-' : '+') . ']';
 		} else {
-			$txt .= '   ';
+			$txt .= '─  ';
 		}
 	} elsif($style eq 'double') {
 		$txt = $self->{last} ? '╚' : '╠';
@@ -314,7 +410,7 @@ sub render {
 		} elsif($self->children) {
 			$txt .= '[' . ($self->is_open ? '-' : '+') . ']';
 		} else {
-			$txt .= '   ';
+			$txt .= '═  ';
 		}
 	} elsif($style eq 'thick') {
 		$txt = $self->{last} ? '┗' : '┣';
@@ -326,7 +422,7 @@ sub render {
 			$txt .= '   ';
 		}
 	} else {
-		$txt = 'ERR';
+		die 'Invalid style for tree element';
 	}
 	$win->print($txt);
 
@@ -373,18 +469,6 @@ sub highlight {
 	$self->{is_highlighted} = 1;
 	Scalar::Util::weaken($self->root->{highlighted} = $self);
 }
-
-=head2 prev
-
-=cut
-
-sub prev { shift->{prev} }
-
-=head2 next
-
-=cut
-
-sub next { shift->{next} }
 
 =head2 highlight_next
 
@@ -631,7 +715,7 @@ sub line_style {
 		$self->{line_style} = shift;
 		return $self;
 	}
-	return $self->{line_style} if exists $self->{line_style};
+	return $self->{line_style} if defined $self->{line_style};
 	return $self->parent->line_style if $self->parent && $self->parent->isa(__PACKAGE__);
 	return $self->root->line_style if $self->root && $self->root != $self;
 
