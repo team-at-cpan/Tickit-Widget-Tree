@@ -17,9 +17,10 @@ sub check_by_method {
 	}
 }
 
+# single creation since we appear to leave terminal in a bad state when calling this twice in one script?
+my ($term, $win) = mk_term_and_window;
 subtest 'Single level' => sub {
 	plan tests => 32;
-	my ($term, $win) = mk_term_and_window;
 	my $widget = Tickit::Widget::Tree->new(
 		label => 'Root'
 	);
@@ -51,7 +52,6 @@ subtest 'Single level' => sub {
 
 subtest 'Two levels' => sub {
 	plan tests => 80;
-	my ($term, $win) = mk_term_and_window;
 	# Root
 	my $widget = Tickit::Widget::Tree->new(
 		label => 'Root'
@@ -103,4 +103,8 @@ subtest 'Two levels' => sub {
 	);
 	flush_tickit;
 	done_testing;
-}
+};
+
+$win->{tickit}->stop;
+done_testing;
+
