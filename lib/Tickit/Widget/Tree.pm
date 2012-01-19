@@ -454,7 +454,7 @@ sub render {
 
 sub highlighted {
 	my $self = shift;
-	return $self->root->{highlighted} || $self->root;
+	return $self->root->{highlighted} ||= $self->root;
 }
 
 =head2 label
@@ -481,7 +481,11 @@ sub highlight {
 
 sub highlight_next {
 	my $self = shift;
-	$self->highlighted->next->highlight;
+	warn $self->label . " h/l " . $self->highlighted->label . " with next " . $self->highlighted->next->label . "\n";
+	my $next = $self->highlighted->next;
+	$next->highlight;
+	die "Next item (" . $next->label . ") is not highlighted" unless $next->is_highlighted;
+	die "Highlighted (" . $self->highlighted->label . ") is not highlighted, I am " . $self->label unless $self->highlighted->is_highlighted;
 	return $self;
 }
 
@@ -491,7 +495,9 @@ sub highlight_next {
 
 sub highlight_prev {
 	my $self = shift;
+	warn "prev: " . $self->label . " h/l " . $self->highlighted->label . " with prev " . $self->highlighted->prev->label . "\n";
 	$self->highlighted->prev->highlight;
+	die "Highlighted (" . $self->highlighted->label . ") is not highlighted, I am " . $self->label unless $self->highlighted->{is_highlighted};
 	return $self;
 }
 
@@ -502,7 +508,6 @@ sub highlight_prev {
 sub rerender {
 	my $self = shift;
 	return unless $self->window;
-	$self->window->clear if $self->root eq $self;
 	$self->redraw;
 }
 
@@ -570,11 +575,11 @@ sub on_key {
 	my $self = shift;
 	my ($type, $str, $key) = @_;
 	if($type eq 'key' && $str eq 'Down') {
-		$self->highlight_next($self);
+		$self->highlight_next;
 		$self->rerender;
 		return 1;
 	} elsif($type eq 'key' && $str eq 'Up') {
-		$self->highlight_prev($self);
+		$self->highlight_prev;
 		$self->rerender;
 		return 1;
 	} elsif($type eq 'text' && $str eq 'A') {

@@ -11,6 +11,8 @@ sub check_by_method {
 		my $t = $tp->[1];
 		isa_ok($w, 'Tickit::Widget::Tree');
 		isa_ok($t, 'Tickit::Widget::Tree');
+		is($w->root->label, $t->root->label, 'root matches');
+		is($w->root, $t->root, 'root really matches');
 		note "==> " . $w->label . " with " . $t->label;
 		foreach my $method ('next', 'prev') {
 			can_ok($w, $method);
@@ -38,7 +40,7 @@ sub check_by_method {
 # single creation since we appear to leave terminal in a bad state when calling this twice in one script?
 my ($term, $win) = mk_term_and_window;
 subtest 'Single level' => sub {
-	plan tests => 48;
+	plan tests => 54;
 	my $widget = Tickit::Widget::Tree->new(
 		label => 'Root'
 	);
@@ -64,7 +66,7 @@ subtest 'Single level' => sub {
 };
 
 subtest 'Two levels' => sub {
-	plan tests => 144;
+	plan tests => 162;
 	# Root
 	my $widget = Tickit::Widget::Tree->new(
 		label => 'Root'
@@ -108,7 +110,7 @@ subtest 'Two levels' => sub {
 };
 
 subtest 'Three levels' => sub {
-	plan tests => 432;
+	plan tests => 486;
 	# Root
 	my $widget = Tickit::Widget::Tree->new(
 		label => 'Root'
