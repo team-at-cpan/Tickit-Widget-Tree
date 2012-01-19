@@ -32,6 +32,10 @@ Tickit::Widget::Tree - support for an expandable tree widget
 
 Simple tree widget. See examples in main source for more info.
 
+=cut
+
+use constant CLEAR_BEFORE_RENDER => 0;
+
 =head1 METHODS
 
 =cut
@@ -117,9 +121,9 @@ sub prev {
 	my $self = shift;
 	if(my $prev = $self->prev_sibling) {
 		return $prev if $prev->is_closed;
-		my ($last_sibling_child) = ($prev->children)[-1];
-		return $last_sibling_child if $last_sibling_child;
-		return $prev;
+		my $c = $prev;
+		$c = $c->last_child while $c->has_children;
+		return $c;
 	}
 	return $self->parent if $self->parent;
 	return $self;
@@ -468,6 +472,7 @@ sub highlight {
 	$self->highlighted->{is_highlighted} = 0;
 	$self->{is_highlighted} = 1;
 	Scalar::Util::weaken($self->root->{highlighted} = $self);
+	return $self;
 }
 
 =head2 highlight_next
@@ -477,6 +482,7 @@ sub highlight {
 sub highlight_next {
 	my $self = shift;
 	$self->highlighted->next->highlight;
+	return $self;
 }
 
 =head2 highlight_prev
@@ -486,6 +492,7 @@ sub highlight_next {
 sub highlight_prev {
 	my $self = shift;
 	$self->highlighted->prev->highlight;
+	return $self;
 }
 
 =head2 rerender
