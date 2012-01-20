@@ -228,9 +228,12 @@ sub window_gained {
 sub reapply_windows {
 	my $self = shift;
 
+	unless($self->is_open) {
+		$_->set_window(undef) for $self->children;
+		return $self->resized;
+	}
+
 	my $win = $self->window or return;
-#	$_->set_window(undef) for $self->children;
-	return $self->resized unless $self->is_open;
 
 	my $prefix_len = length $self->prefix_text;
 	my $y = 1;
@@ -251,7 +254,6 @@ sub reapply_windows {
 #	$win->resize($y, $win->cols);
 	foreach (@tasks) {
 		my ($child, $type, @args) = @$_;
-		warn "@args for " . $child->label . " under " . $self->label . "\n";
 #		if($type eq 'create') {
 			my $sub = $win->make_sub(@args);
 			$child->set_window($sub);
@@ -362,7 +364,8 @@ sub render {
 	my %args = @_;
 	my $rect = $args{rect} || $win->rect;
 
-	if($rect->top < 1) {
+	my $y = $rect->top;
+	if($y < 1) {
 		my $txt = '';
 		my $style = $self->line_style or die "No line style for $self";
 		if($style eq 'ascii') {
@@ -411,19 +414,24 @@ sub render {
 			} else {
 				$win->print($lbl);
 			}
+			$win->erasech($rect->cols - textwidth("$txt$lbl"));
 		}
+		++$y;
 	}
 
-	return unless $self->is_open;
-	return unless $self->children;
-
-	unless($self->{last}) {
-		foreach my $l (1..($self->lines - 1)) {
-			$win->goto($l, 0);
-			$win->print($self->prefix_text);
+	LINE:
+	for ($y..$y+$rect->lines) {
+		last LINE unless $_ < $win->lines;
+		$win->goto($_, $rect->left);
+		my $x = 0;
+		$win->print($self->next_sibling ? $self->prefix_text : (' ' x textwidth($self->prefix_text))) if $rect->left <= textwidth($self->prefix_text);
+		$x += textwidth($self->prefix_text);
+		if($self->is_open && $self->children) {
+			$win->erasech($rect->cols - $x) unless $self->next_sibling;
+		} else {
+			$win->erasech($rect->cols - $x);
 		}
 	}
-#	$_->render for $self->children;
 }
 
 =head2 highlighted
@@ -613,6 +621,7 @@ sub open {
 	my $self = shift;
 	$self->{is_open} = 1;
 	$self->tree_parent->reapply_windows if $self->tree_parent;
+	$self->next_sibling->reapply_windows if $self->next_sibling;
 	return $self;
 }
 
@@ -623,7 +632,9 @@ sub open {
 sub close {
 	my $self = shift;
 	$self->{is_open} = 0;
+	$self->next_sibling->reapply_windows if $self->next_sibling;
 	$self->tree_parent->reapply_windows if $self->tree_parent;
+	$self->resized;
 	return $self;
 }
 
