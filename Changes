@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+0.002     2012-01-21 23:10:42 Europe/London
 	Inherit open/closed state from parent if not otherwise specified.
 	Clean up styling for single line layout.
 	Call insert_after when adding widgets.
