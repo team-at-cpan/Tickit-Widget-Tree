@@ -57,8 +57,6 @@ sub new {
 	$holder->add($messages, expand => 0.5);
 	$report->('Added widgets');
 	$tree->resized;
-	$tree->root->rebuild_all;
-	$report->('Rebuilt tree');
 	return $self;
 }
 
