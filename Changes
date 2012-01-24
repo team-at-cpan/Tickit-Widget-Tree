@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+0.003     2012-01-24 00:20:31 Europe/London
 	New features:
 	 * Support widget for label rather than plain text
 	 * Support different pens for highlight and regular label
