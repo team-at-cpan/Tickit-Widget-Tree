@@ -1,6 +1,18 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	New features:
+	 * Support widget for label rather than plain text
+	 * Support different pens for highlight and regular label
+	 * Adjust style handling so we have all strings in one place
+
+	Bug fixes:
+	 * Resolved some rendering artifacts when opening/closing tree nodes
+	 * Fixed some undef warnings
+
+	Backwards compatibility:
+	 * Removed the following methods which were used for internal housekeeping:
+	   * is_valid_tree_node
 
 0.002     2012-01-21 23:10:42 Europe/London
 	Inherit open/closed state from parent if not otherwise specified.
