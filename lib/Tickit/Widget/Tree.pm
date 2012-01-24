@@ -102,7 +102,7 @@ sub label {
 	if(@_) {
 		my $txt = shift;
 		$self->{label} = $txt;
-		$self->label_widget->set_text($txt)i if exists $self->{label_widget};
+		$self->label_widget->set_text($txt) if exists $self->{label_widget};
 		$self->resized;
 		return $self;
 	}
