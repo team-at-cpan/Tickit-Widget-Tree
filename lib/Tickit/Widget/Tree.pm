@@ -3,7 +3,7 @@ package Tickit::Widget::Tree;
 use strict;
 use warnings;
 use parent qw(Tickit::ContainerWidget);
-use List::Util qw(sum);
+use List::Util qw(sum max);
 use Scalar::Util qw(blessed);
 use Tickit::Utils qw(substrwidth textwidth);
 use Tickit::Widget::Static;
@@ -325,13 +325,13 @@ Adjust our label window to fit the current window.
 
 sub _reshape_label {
 	my $self = shift;
-	my $win = shift;
+	my $win = shift or return $self;
 	die $self->label_widget->lines unless $self->label_widget->lines > 0;
 	my $prefix = $self->style_map->{solo};
 	my $prefix_len = textwidth $prefix;
 
 	# TODO try change_geometry again
-	$self->label_widget->set_window($win->make_sub(0, $prefix_len + 1, $self->label_widget->lines, $win->cols - ($prefix_len + 1)));
+	$self->label_widget->set_window($win->make_sub(0, $prefix_len + 1, $self->label_widget->lines, max 1, $win->cols - ($prefix_len + 1)));
 	return $self;
 }
 
