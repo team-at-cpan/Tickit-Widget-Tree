@@ -73,7 +73,7 @@ sub new {
 		parent	=> $parent
 	);
 	$self->{pen_active} = delete $args{pen_active} || Tickit::Pen->new( fg => 2, bg => 4, b => 1 );
-	$self->{pen_label} = delete $args{pen_label} || Tickit::Pen->new( bg => 16, fg => 7 );
+	$self->{pen_label} = delete $args{pen_label} || Tickit::Pen->new( b => 0, bg => 0, fg => 7 );
 
 	unless($self->{label_widget}) {
 		$self->{label_widget} = Tickit::Widget::Static->new(
@@ -533,7 +533,7 @@ sub render {
 		if($self->children && $self->is_open) {
 			$txt .= $style_map->{open_parent};
 		} elsif($self->children) {
-			$txt .= $style_map->{'is_closed'};
+			$txt .= $style_map->{is_closed};
 		} else {
 			$txt .= $style_map->{solo};
 		}
@@ -610,8 +610,10 @@ sub _set_pen_for_widget {
 	my $method = 'pen_' . $type;
 	$w->set_pen($self->$method);
 	# TODO This seems wrong, but somehow I couldn't convince Tickit::Widget to pick up the new pen
-	$w->window->set_pen($self->$method) if $w->window;
-	$w->resized;
+	if(my $win = $w->window) {
+		$win->set_pen($self->$method);
+		$win->expose;
+	}
 	return $self;
 }
 
@@ -747,6 +749,9 @@ sub open {
 	$self->tree_parent->reapply_windows if $self->tree_parent;
 	$self->next_sibling->reapply_windows if $self->next_sibling;
 	$self->resized;
+	for my $child ($self->children) {
+		$child->is_open ? $child->open : $child->close;
+	} 
 	return $self;
 }
 
@@ -758,11 +763,15 @@ Close this node. Triggers a redraw.
 
 sub close {
 	my $self = shift;
+	my %args = @_;
 	$self->{is_open} = 0;
-	$_->close for $self->children;
+#	unless($args{recursing}) {
 	$self->next_sibling->reapply_windows if $self->next_sibling;
 	$self->tree_parent->reapply_windows if $self->tree_parent;
 	$self->resized;
+	for my $child ($self->children) {
+		$child->is_open ? $child->open : $child->close;
+	} 
 	return $self;
 }
 
