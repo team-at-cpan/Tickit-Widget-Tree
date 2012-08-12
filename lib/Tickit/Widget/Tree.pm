@@ -9,7 +9,7 @@ use Tickit::Utils qw(substrwidth textwidth);
 use Tickit::Widget::Static;
 use utf8;
 
-our $VERSION = '0.003';
+our $VERSION = '0.004';
 
 =head1 NAME
 
@@ -358,11 +358,11 @@ sub reapply_windows {
 	for my $child ($self->children) {
 		my $height = $child->lines;
 
-		push @tasks, [ $child, ($child->window ? 'change' : 'create'), 
+		push @tasks, [ $child, ($child->window ? 'change' : 'create'),
 			$y,
 			$prefix_len,
 			$height,
-			$win->cols - $prefix_len
+			$win->cols - $prefix_len,
 		];
 		$y += $height;
 	}
@@ -759,6 +759,7 @@ Close this node. Triggers a redraw.
 sub close {
 	my $self = shift;
 	$self->{is_open} = 0;
+	$_->close for $self->children;
 	$self->next_sibling->reapply_windows if $self->next_sibling;
 	$self->tree_parent->reapply_windows if $self->tree_parent;
 	$self->resized;
