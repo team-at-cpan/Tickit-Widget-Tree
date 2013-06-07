@@ -79,7 +79,7 @@ sub new {
 		$self->{label_widget} = Tickit::Widget::Static->new(
 			text => defined($self->{label}) ? $self->{label} : ''
 		);
-		$self->{label_widget}->set_pen($self->pen_label);
+#		$self->{label_widget}->set_pen($self->pen_label);
 	}
 
 	if(my $children = delete $args{children}) {
@@ -120,7 +120,7 @@ sub label_widget {
 	my $self = shift;
 	if(@_) {
 		$self->{label_widget} = shift;
-		$self->{label_widget}->set_pen($self->pen_label);
+#		$self->{label_widget}->set_pen($self->pen_label);
 		$self->resized;
 		return $self;
 	}
@@ -608,10 +608,10 @@ sub _set_pen_for_widget {
 	my $type = shift or die "no type supplied";
 
 	my $method = 'pen_' . $type;
-	$w->set_pen($self->$method);
+#	$w->set_pen($self->$method);
 	# TODO This seems wrong, but somehow I couldn't convince Tickit::Widget to pick up the new pen
 	if(my $win = $w->window) {
-		$win->set_pen($self->$method);
+#		$win->set_pen($self->$method);
 		$win->expose;
 	}
 	return $self;
