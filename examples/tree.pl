@@ -40,11 +40,23 @@ sub new {
 		last => 0,
 		label => 'First',
 	));
-	$tree->add(Tickit::Widget::Tree->new(
+	$tree->add(my $sub = Tickit::Widget::Tree->new(
 		parent => $tree,
 		is_open => 1,
 		last => 0,
 		label => 'Next entry',
+	));
+	$sub->add(Tickit::Widget::Tree->new(
+		parent => $sub,
+		is_open => 0,
+		last => 0,
+		label => 'First child',
+	));
+	$sub->add(Tickit::Widget::Tree->new(
+		parent => $sub,
+		is_open => 0,
+		last => 0,
+		label => 'Second child',
 	));
 	$tree->add(Tickit::Widget::Tree->new(
 		parent => $tree,
@@ -53,10 +65,11 @@ sub new {
 		label => 'First child',
 	));
 
-	$holder->add($tree, expand => 0.5);
-	$holder->add($messages, expand => 0.5);
+	$holder->add($tree, expand => 1);
+	$holder->add($messages, expand => 1);
 	$report->('Added widgets');
 	$tree->resized;
+	$tree->take_focus;
 	return $self;
 }
 
@@ -70,7 +83,7 @@ sub run {
 	my $self = shift;
 	$self->{loop} = IO::Async::Loop->new;
 	$self->{ui} = Layout->new;
-	$self->loop->add($self->ui);
+#	$self->loop->add($self->ui);
 	$self->ui->run;
 }
 
@@ -78,5 +91,5 @@ sub loop { shift->{loop} }
 sub ui { shift->{ui} }
 
 package main;
-MenuLayout->new->run;
+MenuLayout->new->run unless caller;
 

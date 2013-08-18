@@ -34,6 +34,7 @@ Simple tree widget. See examples in main source for more info.
 =cut
 
 use constant CLEAR_BEFORE_RENDER => 0;
+use constant CAN_FOCUS => 1;
 
 =head1 METHODS
 
