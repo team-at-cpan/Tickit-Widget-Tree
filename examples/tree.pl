@@ -1,95 +1,24 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 use strict;
 use warnings;
-package Layout;
-use parent qw(Tickit::Async);
-
-use Tickit::Widget::VBox;
-use Tickit::Widget::Entry;
-use Tickit::Widget::Static;
-use Tickit::Widget::HBox;
+use Tickit;
 use Tickit::Widget::Tree;
 
-sub new {
-	my $class = shift;
-	my $self = $class->SUPER::new(@_);
-	$self->{current_line} = 0;
-
-
-# Set up a sub and widget to hold some basic log messages
-	my $out;
-	my $messages = Tickit::Widget::VBox->new;
-	my $report = sub {
-		my $msg = shift;
-		$messages->remove(0) while $messages->children >= $self->rootwin->lines;
-		$messages->add(Tickit::Widget::Static->new(text => $msg, align => 'left', valign => 'top'));
-	};
-
-# Top-level holder
-	my $holder = $self->{holder} = Tickit::Widget::HBox->new;
-	$holder->set_window($self->rootwin); # should really set_root_widget perhaps
-	my $tree = Tickit::Widget::Tree->new(
-		is_open => 1,
-		last => 1,
-		label => 'Root',
-		line_style => 'single',
-	);
-	$tree->add(Tickit::Widget::Tree->new(
-		parent => $tree,
-		is_open => 1,
-		last => 0,
-		label => 'First',
-	));
-	$tree->add(my $sub = Tickit::Widget::Tree->new(
-		parent => $tree,
-		is_open => 1,
-		last => 0,
-		label => 'Next entry',
-	));
-	$sub->add(Tickit::Widget::Tree->new(
-		parent => $sub,
-		is_open => 0,
-		last => 0,
-		label => 'First child',
-	));
-	$sub->add(Tickit::Widget::Tree->new(
-		parent => $sub,
-		is_open => 0,
-		last => 0,
-		label => 'Second child',
-	));
-	$tree->add(Tickit::Widget::Tree->new(
-		parent => $tree,
-		is_open => 0,
-		last => 1,
-		label => 'First child',
-	));
-
-	$holder->add($tree, expand => 1);
-	$holder->add($messages, expand => 1);
-	$report->('Added widgets');
-	$tree->resized;
-	$tree->take_focus;
-	return $self;
-}
-
-package MenuLayout;
-use utf8;
-use IO::Async::Loop;
-
-sub new { bless { }, shift }
-
-sub run {
-	my $self = shift;
-	$self->{loop} = IO::Async::Loop->new;
-	$self->{ui} = Layout->new;
-#	$self->loop->add($self->ui);
-	$self->ui->run;
-}
-
-sub loop { shift->{loop} }
-sub ui { shift->{ui} }
-
-package main;
-MenuLayout->new->run unless caller;
+my $tree = Tree::DAG_Node->random_network({ max_depth => 20, min_depth => 6, max_children => 3, max_node_count => 5000 }); # Tree::DAG_Node->new;
+$tree->name('Root');
+$tree->walk_down({ callback => sub { shift->attributes->{open} = 0 } });
+$tree->attributes->{open} = 1;
+my $n;
+$tree->add_daughter($n = Tree::DAG_Node->new({name => 'one'}));
+$n->add_daughter(Tree::DAG_Node->new({name => 'one.one'}));
+$tree->add_daughter($n = Tree::DAG_Node->new({name => 'two'}));
+$n->add_daughter(Tree::DAG_Node->new({name => 'two.one'}));
+$n->add_daughter(Tree::DAG_Node->new({name => 'two.two'}));
+$n->add_daughter(Tree::DAG_Node->new({name => 'two.three'}));
+$n->attributes->{open} = 1;
+$tree->add_daughter($n = Tree::DAG_Node->new({name => 'three'}));
+$n->add_daughter(Tree::DAG_Node->new({name => "three.$_"})) for qw(one two three four five six seven);
+$tree->add_daughter(Tree::DAG_Node->new({name => 'four'}));
+# warn "$_\n" for @{$tree->tree2string};
+Tickit->new(root => do { my $w = Tickit::Widget::Tree->new(root => $tree); $w->take_focus; $w })->run;
 

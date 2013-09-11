@@ -1,6 +1,14 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	NOTE: This is a complete rewrite, and now uses Tree::DAG_Node for most of the
+	important parts. Most old methods for navigating the tree have been removed as
+	a consequence.
+
+	New features:
+	* Tickit::Style support
+	* Render lines using Tickit::RenderBuffer
+	* Mouse support
 
 0.003     2012-01-24 00:20:31 Europe/London
 	New features:
