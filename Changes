@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+0.100     2013-09-13 22:47:38 Europe/London
 	Version bump for non-DEV release.
 
 	New features:
