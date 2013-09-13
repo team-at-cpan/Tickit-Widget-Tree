@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use parent qw(Tickit::Widget Mixin::Event::Dispatch);
 
-our $VERSION = '0.090_001';
+our $VERSION = '0.090_002';
 
 =head1 NAME
 
@@ -34,6 +34,7 @@ is not backward compatible.
 use Term::TermKey qw(KEYMOD_CTRL);
 use Tickit::RenderBuffer qw(LINE_SINGLE CAP_START CAP_END CAP_BOTH);
 use Tree::DAG_Node;
+use List::Util qw(max);
 use Tickit::Utils qw(textwidth);
 use Tickit::Style;
 
@@ -89,6 +90,8 @@ BEGIN {
 	style_definition ':focus' =>
 		'<Up>'               => 'previous_row',
 		'<Down>'             => 'next_row',
+		'<Left>'             => 'up_tree',
+		'<Right>'            => 'down_tree',
 		'<PageUp>'           => 'previous_page',
 		'<PageDown>'         => 'next_page',
 		'<Home>'             => 'first_row',
@@ -98,8 +101,58 @@ BEGIN {
 		'<->'                => 'close_node';
 }
 
-sub cols { 1 }
-sub lines { 1 }
+sub cols {
+	my $self = shift;
+	$self->calculate_size unless exists $self->{cols};
+	return $self->{cols};
+}
+
+sub lines {
+	my $self = shift;
+	$self->calculate_size unless exists $self->{cols};
+	return $self->{cols};
+}
+
+=head2 calculate_size
+
+Calculate the minimum size needed to contain the full tree with all nodes expanded.
+
+Used internally.
+
+=cut
+
+sub calculate_size {
+	my $self = shift;
+	my $w = 0;
+	my $h = 0;
+	my $code = sub {
+		my ($code, $node, $depth, $y) = @_;
+
+		my $has_children = $node->daughters ? 1 : 0;
+
+		# Our label - root isn't shown, and we don't want a blank
+		# line at the top either, so we don't update the pointer for root
+		unless($node->is_root) {
+			# We only need to draw this if we're inside the rendering area
+			$w = max $w, 1 + 3 * $depth + textwidth($node->name);
+
+			# ... but we always want to update our current row pointer
+			++$y;
+		}
+
+		# We can stop here if we're empty
+		return $y unless $has_children;
+
+		# Recurse into each child node, updating our height as we go
+		my @child = $node->daughters;
+
+		return $code->($code, $_, $depth + 1, $y) for @child;
+	};
+	$h = $code->($code, $self->root, 0, 0);
+	$self->{lines} = $h + 1;
+	$self->{cols} = $w;
+	return $self;
+}
 
 =head2 new
 
@@ -124,6 +177,7 @@ sub new {
 	my $self = $class->SUPER::new(%args);
 	$self->{root} = $root;
 	$self->{on_activate} = $activate;
+	$self->take_focus;
 	$self
 }
 
@@ -143,6 +197,18 @@ sub root {
 		return $self;
 	}
 	return $self->{root}
+}
+
+=head2 window_gained
+
+Work out our size, when we have a window to fit in.
+
+=cut
+
+sub window_gained {
+	my $self = shift;
+	$self->calculate_size;
+	$self->SUPER::window_gained(@_);
 }
 
 =head2 render_to_rb
@@ -246,6 +312,22 @@ sub render_to_rb {
 		return $y;
 	};
 	$code->($code, $self->root, 0, 0);
+	$rb->goto(0,0);
+}
+
+=head2 reshape
+
+Workaround to avoid warnings from L<Tickit::Window>. This probably shouldn't
+be here, pretend you didn't see it.
+
+=cut
+
+sub reshape {
+	my $self = shift;
+	if(my $win = $self->window) {
+		$win->cursor_at(0,0);
+	}
+	$self->SUPER::reshape(@_)
 }
 
 =head2 on_mouse
@@ -341,9 +423,14 @@ Move down a node.
 sub key_next_row {
 	my $self = shift;
 	my $node = $self->highlight_node;
+	# If we're open and there are any nodes under us, that's easy -
+	# just pick the first one and we're done
 	if($node->attributes->{open} && $node->daughters) {
 		($node) = $node->daughters;
 	} else {
+		# We chase up the tree looking for a suitable 'next' entry - either
+		# the next node across from us, or from the parent, etc. We may not
+		# be able to find anything - in that case, we'll end up at the root.
 		while(!$node->is_root) {
 			if($node->right_sister) {
 				$node = $node->right_sister;
@@ -353,8 +440,41 @@ sub key_next_row {
 		}
 	}
 
-	# if we've gone past the start, we're at the top
-	($node) = reverse $node->daughters if $node->is_root;
+	# if we've gone past the start, we're already at the bottom so we don't
+	# do anything - just bail out here
+	return $self if $node->is_root;
+
+	$self->highlight_node($node);
+	$self->redraw;
+}
+
+=head2 key_up_tree
+
+Going "up" the tree means the parent of the current node.
+
+=cut
+
+sub key_up_tree {
+	my $self = shift;
+	my $node = $self->highlight_node;
+	return $self if $node->is_root;
+	$self->highlight_node($node->mother);
+	$self->redraw;
+}
+
+=head2 key_down_tree
+
+Going "down" the tree means the first child node, if we have one
+and we're open.
+
+=cut
+
+sub key_down_tree {
+	my $self = shift;
+	my $node = $self->highlight_node;
+	return $self unless $node->daughters;
+	$node->attributes->{open} = 1 unless $node->attributes->{open};
+	($node) = $node->daughters;
 	$self->highlight_node($node);
 	$self->redraw;
 }
