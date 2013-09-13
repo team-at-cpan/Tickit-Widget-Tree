@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+0.090_002 2013-09-13 22:41:34 Europe/London
 	New features:
 	* Navigate to parent node via <Left>, first child via <Right> for quicker
 	keyboard-only access
