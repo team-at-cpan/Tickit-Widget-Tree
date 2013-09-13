@@ -1,6 +1,12 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	Version bump for non-DEV release.
+
+	New features:
+	* highlight_node event invoked when the currently-selected node is changed.
+	Currently undocumented since the API may change slightly after some more
+	testing.
 
 0.090_002 2013-09-13 22:41:34 Europe/London
 	New features:
