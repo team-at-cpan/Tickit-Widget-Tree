@@ -252,7 +252,6 @@ indicate when scroll actions have occurred.
 
 sub scrolled {
 	my $self = shift;
-	my ($downward, $rightward, $h_or_v) = @_;
 	# TODO We could be far more efficient here
 	$self->redraw;
 }

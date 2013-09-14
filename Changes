@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+0.101     2013-09-14 01:28:37 Europe/London
 	New features:
 	* Cursor is in a slightly less confusing location
 	* CAN_SCROLL support (for embedding in Tickit::Widget::ScrollBox)
