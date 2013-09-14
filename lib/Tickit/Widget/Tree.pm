@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use parent qw(Tickit::Widget Mixin::Event::Dispatch);
 
-our $VERSION = '0.100';
+our $VERSION = '0.101';
 
 =head1 NAME
 
@@ -25,7 +25,7 @@ is not backward compatible.
 
 =begin HTML
 
-<p><img src="http://tickit.perlsite.co.uk/cpan-screenshot/tickit-widget-tree1.gif" alt="Tree widge in action" width="480" height="403"></p>
+<p><img src="http://tickit.perlsite.co.uk/cpan-screenshot/tickit-widget-tree1.gif" alt="Tree widget in action" width="480" height="403"></p>
 
 =end HTML
 
@@ -42,6 +42,8 @@ use constant CLEAR_BEFORE_RENDER => 0;
 use constant WIDGET_PEN_FROM_STYLE => 1;
 use constant KEYPRESSES_FROM_STYLE => 1;
 use constant CAN_FOCUS => 1;
+# Tickit::Widget::ScrollBox has the details
+use constant CAN_SCROLL => 1;
 
 =head1 STYLES
 
@@ -65,15 +67,28 @@ entire width of the widget, rather than just the text
 
 Key bindings are currently:
 
-		'<Up>'               => 'previous_row',
-		'<Down>'             => 'next_row',
-		'<PageUp>'           => 'previous_page',
-		'<PageDown>'         => 'next_page',
-		'<Home>'             => 'first_row',
-		'<End>'              => 'last_row',
-		'<Enter>'            => 'activate',
-		'<+>'                => 'open_node',
-		'<->'                => 'close_node';
+=over 4
+
+=item * previous_row - move up a line, stepping into open nodes, default C<Up>
+
+=item * next_row - move down a line, stepping into open nodes, default C<Down>
+
+=item * up_tree - move to the parent, default C<Left>
+
+=item * down_tree - move to the first child, opening the current node if
+necessary, default C<Right>
+
+=item * open_node - opens the current node, default C<+>
+
+=item * close_node - closes the current node, default C<->
+
+=item * activate - activates the current node, default C<Enter>
+
+=item * first_row - jump to the first node in the tree, default C<Home>
+
+=item * last_row - jump to the last node in the tree, default C<End>
+
+=back
 
 =cut
 
@@ -109,8 +124,8 @@ sub cols {
 
 sub lines {
 	my $self = shift;
-	$self->calculate_size unless exists $self->{cols};
-	return $self->{cols};
+	$self->calculate_size unless exists $self->{lines};
+	return $self->{lines};
 }
 
 =head2 calculate_size
@@ -146,9 +161,11 @@ sub calculate_size {
 		# Recurse into each child node, updating our height as we go
 		my @child = $node->daughters;
 
-		return $code->($code, $_, $depth + 1, $y) for @child;
+		$y = $code->($code, $_, $depth + 1, $y) for @child;
+		return $y;
 	};
 	$h = $code->($code, $self->root, 0, 0);
+	warn "result: $w, $h";
 	$self->{lines} = $h + 1;
 	$self->{cols} = $w;
 	return $self;
@@ -211,6 +228,21 @@ sub window_gained {
 	$self->SUPER::window_gained(@_);
 }
 
+sub set_scrolling_extents {
+	my $self = shift;
+	my ($v, $h) = @_;
+	$self->{scroll_hextent} = $h;
+	$self->{scroll_vextent} = $v;
+	$self
+}
+
+sub scrolled {
+	my $self = shift;
+	my ($downward, $rightward, $h_or_v) = @_;
+	# TODO We could be far more efficient here
+	$self->redraw;
+}
+
 =head2 render_to_rb
 
 Render method. Used internally.
@@ -220,10 +252,15 @@ Render method. Used internally.
 sub render_to_rb {
 	my $self = shift;
 	my ($rb, $rect) = @_;
+	my $win = $self->window;
 
 	$rb->clear;
-	my $top = $rect->top;
-	my $bottom = $rect->bottom;
+	my $y_offset = $self->{scroll_vextent} ? $self->{scroll_vextent}->start : 0;
+	my $x_offset = $self->{scroll_hextent} ? $self->{scroll_hextent}->start : 0;
+	$rb->translate(-$y_offset, -$x_offset) if $y_offset || $x_offset;
+
+	my $top = $rect->top + $y_offset;
+	my $bottom = $rect->bottom + $y_offset;
 	my $highlight_node = $self->highlight_node;
 	my $regular_pen = $self->get_style_pen;
 	my $highlight_pen = $self->get_style_pen('highlight');
@@ -260,6 +297,7 @@ sub render_to_rb {
 					my $start = (1 + 3 * $depth) + textwidth($node->name);
 					$rb->text_at($y, $start, ' ' x ($rect->right - $start), $highlight_pen);
 				}
+				$win->cursor_at($y - $y_offset, (2 + 3 * ($depth - 1)) - $x_offset) if ($highlight_node == $node) && delete $self->{move_cursor};
 				if($has_children) {
 					$rb->char_at(
 						$y,
@@ -326,6 +364,7 @@ sub reshape {
 	my $self = shift;
 	if(my $win = $self->window) {
 		$win->cursor_at(0,0);
+		$self->{move_cursor} = 1;
 	}
 	$self->SUPER::reshape(@_)
 }
@@ -491,6 +530,7 @@ sub highlight_node {
 		my $prev = $self->{highlight_node};
 		$self->{highlight_node} = shift;
 		$self->invoke_event(highlight_node => $self->{highlight_node}, $prev);
+		$self->{move_cursor} = 1;
 		$self->redraw;
 		return $self
 	}
