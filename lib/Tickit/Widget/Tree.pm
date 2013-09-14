@@ -228,6 +228,13 @@ sub window_gained {
 	$self->SUPER::window_gained(@_);
 }
 
+=head2 set_scrolling_extents
+
+Called by L<Tickit::Widget::ScrollBox> or other scroll-capable containers to
+set up the extent objects which determine the drawable viewport offset.
+
+=cut
+
 sub set_scrolling_extents {
 	my $self = shift;
 	my ($v, $h) = @_;
@@ -235,6 +242,13 @@ sub set_scrolling_extents {
 	$self->{scroll_vextent} = $v;
 	$self
 }
+
+=head2 scrolled
+
+Called by L<Tickit::Widget::ScrollBox> or other scroll-capable containers to
+indicate when scroll actions have occurred.
+
+=cut
 
 sub scrolled {
 	my $self = shift;
