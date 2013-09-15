@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use parent qw(Tickit::Widget Mixin::Event::Dispatch);
 
-our $VERSION = '0.101';
+our $VERSION = '0.102';
 
 =head1 NAME
 
@@ -95,6 +95,8 @@ necessary, default C<Right>
 BEGIN {
 	style_definition 'base' =>
 		fg                   => 'white',
+		toggle_fg            => 'white',
+		label_fg             => 'white',
 		line_style           => 'single',
 		expand_style         => 'boxed',
 		highlight_fg         => 'yellow',
@@ -189,7 +191,7 @@ via 'enter' keypress)
 sub new {
 	my $class = shift;
 	my %args = @_;
-	my $root = delete $args{root};
+	my $root = delete($args{root}) || Tree::DAG_Node->new({name => 'Root'});
 	my $activate = delete $args{on_activate};
 	my $self = $class->SUPER::new(%args);
 	$self->{root} = $root;
@@ -275,9 +277,12 @@ sub render_to_rb {
 	my $top = $rect->top + $y_offset;
 	my $bottom = $rect->bottom + $y_offset;
 	my $highlight_node = $self->highlight_node;
-	my $regular_pen = $self->get_style_pen;
+	my $regular_label_pen = $self->get_style_pen;
+	my $line_pen = $self->get_style_pen;
+	my $toggle_pen = $self->get_style_pen('toggle');
 	my $highlight_pen = $self->get_style_pen('highlight');
 	my $full_highlight = $self->get_style_values('highlight_full_row');
+
 	my $code = sub {
 		my ($code, $node, $depth, $y) = @_;
 
@@ -295,69 +300,81 @@ sub render_to_rb {
 			$y + 1,
 			1 + 3 * ($depth),
 			LINE_SINGLE,
-			undef,
+			$line_pen,
 			CAP_START
 		) if $has_children && $is_open && $y >= $top;
+
+		++$y unless $node->is_root;
+
+		if($has_children && ($node->is_root || $is_open)) {
+			# Recurse into each child node, updating our height as we go
+			my @child = $node->daughters;
+
+			# The vertical connecting line stops at the *start* of the last child,
+			# so we want to end up with:
+			#  \- child
+			#     + other child
+			# rather than
+			#  |- child
+			#  |  + other child
+			# so we record the position this last child starts at in $tree_y
+			my $last = pop @child;
+			$y = $code->($code, $_, $depth + 1, $y) for @child;
+			my $tree_y = $y;
+			$y = $code->($code, $last, $depth + 1, $y) if $last;
+
+			# And now we render those connecting lines, if we only have a single child
+			# we've done this already.
+			if($y >= $top && $node->daughters > 1) {
+				$rb->vline_at(
+					$start_y,
+					$tree_y,
+					1 + 3 * ($depth),
+					LINE_SINGLE,
+					$line_pen,
+					CAP_START
+				);
+			}
+		}
 
 		# Our label - root isn't shown, and we don't want a blank
 		# line at the top either, so we don't update the pointer for root
 		unless($node->is_root) {
 			# We only need to draw this if we're inside the rendering area
-			if($y >= $top) {
-				$rb->hline_at($y, 1 + 3 * ($depth - 1), (3 * $depth) - ($has_children ? 1 : 0), LINE_SINGLE) if $depth;
-				$rb->text_at($y, 1 + 3 * $depth, $node->name, ($highlight_node == $node) ? $highlight_pen : $regular_pen);
+			if($start_y >= $top) {
+				$rb->hline_at(
+					$start_y,
+					1 + 3 * ($depth - 1),
+					(3 * $depth) - ($has_children ? 1 : 0),
+					LINE_SINGLE,
+					$line_pen,
+				) if $depth;
+				$rb->text_at(
+					$start_y,
+					1 + 3 * $depth,
+					$node->name,
+					($highlight_node == $node) ? $highlight_pen : $regular_label_pen
+				);
 				if($full_highlight && $highlight_node == $node) {
 					my $start = (1 + 3 * $depth) + textwidth($node->name);
-					$rb->text_at($y, $start, ' ' x ($rect->right - $start), $highlight_pen);
+					$rb->text_at(
+						$start_y,
+						$start,
+						' ' x ($rect->right - $start),
+						$highlight_pen
+					);
 				}
-				$win->cursor_at($y - $y_offset, (2 + 3 * ($depth - 1)) - $x_offset) if ($highlight_node == $node) && delete $self->{move_cursor};
+				$win->cursor_at($start_y - $y_offset, (2 + 3 * ($depth - 1)) - $x_offset) if ($highlight_node == $node) && delete $self->{move_cursor};
 				if($has_children) {
 					$rb->char_at(
-						$y,
+						$start_y,
 						2 + 3 * ($depth - 1),
-						$is_open ? 0x229F : 0x229E
+						$is_open ? 0x229F : 0x229E,
+						$toggle_pen
 					);
-					Scalar::Util::weaken($self->{toggle}{join ',', $y, 2 + 3 * ($depth - 1)} = $node);
+					Scalar::Util::weaken($self->{toggle}{join ',', $start_y, 2 + 3 * ($depth - 1)} = $node);
 				}
 			}
-
-			# ... but we always want to update our current row pointer
-			++$y;
-		}
-
-		# We can stop here if we're empty
-		return $y unless $has_children;
-		# or if we're closed, note that closing the root widget is not supported
-		# since that makes it very difficult to open it again...
-		return $y unless $node->is_root || $is_open;
-
-		# Recurse into each child node, updating our height as we go
-		my @child = $node->daughters;
-
-		# The vertical connecting line stops at the *start* of the last child,
-		# so we want to end up with:
-		#  \- child
-		#     + other child
-		# rather than
-		#  |- child
-		#  |  + other child
-		# so we record the position this last child starts at in $tree_y
-		my $last = pop @child;
-		$y = $code->($code, $_, $depth + 1, $y) for @child;
-		my $tree_y = $y;
-		$y = $code->($code, $last, $depth + 1, $y) if $last;
-
-		# And now we render those connecting lines, if we only have a single child
-		# we've done this already.
-		if($y >= $top && $node->daughters > 1) {
-			$rb->vline_at(
-				$start_y + 1,
-				$tree_y,
-				1 + 3 * ($depth),
-				LINE_SINGLE,
-				undef,
-				CAP_START
-			);
 		}
 
 		return $y;
@@ -509,7 +526,7 @@ Going "up" the tree means the parent of the current node.
 sub key_up_tree {
 	my $self = shift;
 	my $node = $self->highlight_node;
-	return $self if $node->is_root;
+	return $self if $node->is_root || $node->mother->is_root;
 	$self->highlight_node($node->mother);
 	$self->redraw;
 }

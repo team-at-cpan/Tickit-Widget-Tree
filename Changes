@@ -1,6 +1,14 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	New features:
+	* Provide a default Tree::DAG_Node object if not specified in the
+	constructor.
+	* Allow separate label and toggle button (+/-) styles
+
+	Bug fixes:
+	* Fixed some rendering glitches
+	* Don't allow root highlight, since it's never visible
 
 0.101     2013-09-14 01:28:37 Europe/London
 	New features:
