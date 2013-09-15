@@ -65,6 +65,12 @@ entire width of the widget, rather than just the text
 
 =back
 
+=begin HTML
+
+<p><img src="http://tickit.perlsite.co.uk/cpan-screenshot/tickit-widget-tree2.png" alt="Tree widget styles" width="302" height="249"></p>
+
+=end HTML
+
 Key bindings are currently:
 
 =over 4
