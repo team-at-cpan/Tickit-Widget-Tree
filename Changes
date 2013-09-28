@@ -2,6 +2,9 @@ Revision history for {{$dist->name}}
 
 {{$NEXT}}
 
+	Bug fixes:
+	* Enter key wasn't activating the highlighted node
+
 0.102     2013-09-15 18:48:14 Europe/London
 	New features:
 	* Provide a default Tree::DAG_Node object if not specified in the
