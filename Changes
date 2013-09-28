@@ -1,9 +1,11 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	No new features.
 
 	Bug fixes:
 	* Enter key wasn't activating the highlighted node
+	* Updated Dist::Zilla::Plugin::Test::Compile for RT88783
 
 0.102     2013-09-15 18:48:14 Europe/London
 	New features:
