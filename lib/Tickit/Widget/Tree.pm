@@ -3,8 +3,9 @@ package Tickit::Widget::Tree;
 use strict;
 use warnings;
 use parent qw(Tickit::Widget Mixin::Event::Dispatch);
+use constant EVENT_DISPATCH_ON_FALLBACK => 0;
 
-our $VERSION = '0.103';
+our $VERSION = '0.104';
 
 =head1 NAME
 

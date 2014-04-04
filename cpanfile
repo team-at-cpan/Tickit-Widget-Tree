@@ -1,8 +1,7 @@
 requires 'parent', 0;
-requires 'Tree::DAG_Node', '>= 1.16';
-requires 'Mixin::Event::Dispatch', '>= 1.000';
+requires 'Tree::DAG_Node', '>= 1.22';
+requires 'Mixin::Event::Dispatch', '>= 1.001';
 requires 'Tickit', '>= 0.37';
-requires 'Term::TermKey', 0;
 
 on 'test' => sub {
 	requires 'Test::More', '>= 0.98';
