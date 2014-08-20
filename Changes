@@ -1,6 +1,10 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	No new features.
+
+	Bug fixes:
+	* Dropped a stray 'warn' line.
 
 0.103     2013-09-28 20:07:44 Europe/London
 	No new features.

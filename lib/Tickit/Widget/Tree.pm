@@ -5,7 +5,7 @@ use warnings;
 use parent qw(Tickit::Widget Mixin::Event::Dispatch);
 use constant EVENT_DISPATCH_ON_FALLBACK => 0;
 
-our $VERSION = '0.104';
+our $VERSION = '0.105';
 
 =head1 NAME
 
@@ -174,7 +174,6 @@ sub calculate_size {
 		return $y;
 	};
 	$h = $code->($code, $self->root, 0, 0);
-	warn "result: $w, $h";
 	$self->{lines} = $h + 1;
 	$self->{cols} = $w;
 	return $self;
@@ -633,7 +632,7 @@ Plenty of features and bugfixes left on the list, in no particular order:
 
 =head1 AUTHOR
 
-Tom Molesworth <cpan@entitymodel.com>
+Tom Molesworth <cpan@perlsite.co.uk>
 
 =head1 LICENSE
 
