@@ -5,7 +5,7 @@ use warnings;
 use parent qw(Tickit::Widget Mixin::Event::Dispatch);
 use constant EVENT_DISPATCH_ON_FALLBACK => 0;
 
-our $VERSION = '0.105';
+our $VERSION = '0.106';
 
 =head1 NAME
 
