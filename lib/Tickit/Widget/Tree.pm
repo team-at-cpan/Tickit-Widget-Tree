@@ -192,7 +192,7 @@ Instantiate. Takes the following named parameters:
 =item * on_activate - coderef to call when a node has been activated (usually
 via 'enter' keypress)
 
-=itme * data - if provided, this will be used as a data structure to build the initial tree.
+=item * data - if provided, this will be used as a data structure to build the initial tree.
 
 =back
 
