@@ -1,6 +1,9 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	Features:
+	* Support data => [ ... ] option for constructing
+	initial tree layout
 
 0.106     2014-08-23 01:44:55+01:00 Europe/London
 	No new features.

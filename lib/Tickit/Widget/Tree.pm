@@ -2,10 +2,12 @@ package Tickit::Widget::Tree;
 # ABSTRACT: Terminal tree widget
 use strict;
 use warnings;
+
 use parent qw(Tickit::Widget Mixin::Event::Dispatch);
+
 use constant EVENT_DISPATCH_ON_FALLBACK => 0;
 
-our $VERSION = '0.106';
+our $VERSION = '0.107';
 
 =head1 NAME
 
@@ -190,7 +192,25 @@ Instantiate. Takes the following named parameters:
 =item * on_activate - coderef to call when a node has been activated (usually
 via 'enter' keypress)
 
+=itme * data - if provided, this will be used as a data structure to build the initial tree.
+
 =back
+
+Example usage:
+
+ Tickit:Widget::Tree->new(
+  data => [
+ 	node1 => [
+		qw(some nodes here)
+	],
+	node2 => [
+		qw(more nodes in this one),
+		and => [
+			qw(this has a few child nodes too)
+		]
+	],
+  ];
+ );
 
 =cut
 
@@ -198,7 +218,34 @@ sub new {
 	my $class = shift;
 	my %args = @_;
 	my $root = delete($args{root}) || Tree::DAG_Node->new({name => 'Root'});
+	if(my $data = delete $args{data}) {
+		my $add;
+		$add = sub {
+			my ($parent, $item) = @_;
+			if(my $ref = ref $item) {
+				if($ref eq 'ARRAY') {
+					my $prev = $parent;
+					for (@$item) {
+						if(ref) {
+							$add->($prev, $_);
+						} else {
+							my $node = $parent->new_daughter;
+							$node->name($_);
+							$prev = $node;
+						}
+					}
+				} else {
+					die 'This data was not in the desired format. Sorry.';
+				}
+			} else {
+				my $node = $parent->new_daughter;
+				$node->name($item);
+			}
+		};
+		$add->($root, $data);
+	}
 	my $activate = delete $args{on_activate};
+	# this should really be in ::Tree
 	my $self = $class->SUPER::new(%args);
 	$self->{root} = $root;
 	$self->{on_activate} = $activate;
