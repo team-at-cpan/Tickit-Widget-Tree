@@ -7,7 +7,7 @@ use parent qw(Tickit::Widget Mixin::Event::Dispatch);
 
 use constant EVENT_DISPATCH_ON_FALLBACK => 0;
 
-our $VERSION = '0.107';
+our $VERSION = '0.108';
 
 =head1 NAME
 
@@ -34,7 +34,6 @@ is not backward compatible.
 
 =cut
 
-use Term::TermKey qw(KEYMOD_CTRL);
 use Tickit::RenderBuffer qw(LINE_SINGLE CAP_START CAP_END CAP_BOTH);
 use Tree::DAG_Node;
 use List::Util qw(max);
@@ -465,7 +464,7 @@ sub on_mouse {
 		if(my $hotspot = $self->{toggle}{join ',', $ev->line, $ev->col}) {
 			# Ctrl-click recursively opens/closes all nodes from the given point
 			my $new = $hotspot->attributes->{open} ? 0 : 1;
-			if($ev->mod & KEYMOD_CTRL) {
+			if($ev->mod_is_ctrl) {
 				$hotspot->walk_down({
 					callback => sub {
 						my $node = shift;

@@ -2,7 +2,6 @@ requires 'parent', 0;
 requires 'Tree::DAG_Node', '>= 1.22';
 requires 'Mixin::Event::Dispatch', '>= 1.006';
 requires 'Tickit', '>= 0.46';
-requires 'Term::TermKey', 0;
 requires 'Tickit::Widget', 0;
 
 on 'test' => sub {

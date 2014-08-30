@@ -1,6 +1,9 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	Dependencies:
+	* Dropped Term::Termkey dependency which was previously used for
+	the "control" modifier key (now available directly from Tickit).
 
 0.107     2014-08-23 02:34:40+01:00 Europe/London
 	Features:
