@@ -1,4 +1,5 @@
 requires 'parent', 0;
+requires 'Adapter::Async', '>= 0.008';
 requires 'Tree::DAG_Node', '>= 1.22';
 requires 'Mixin::Event::Dispatch', '>= 1.006';
 requires 'Tickit', '>= 0.46';

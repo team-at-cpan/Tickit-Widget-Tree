@@ -1,6 +1,9 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	Features:
+	* Provides ->position_adapter for monitoring current tree position
+
 	Dependencies:
 	* Dropped Term::Termkey dependency which was previously used for
 	the "control" modifier key (now available directly from Tickit).
