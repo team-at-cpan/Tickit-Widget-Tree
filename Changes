@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+0.108     2014-08-30 02:15:42+01:00 Europe/London
 	Features:
 	* Provides ->position_adapter for monitoring current tree position
 

@@ -20,8 +20,8 @@ my %WriteMakefileArgs = (
   "LICENSE" => "perl",
   "NAME" => "Tickit::Widget::Tree",
   "PREREQ_PM" => {
+    "Adapter::Async" => "0.008",
     "Mixin::Event::Dispatch" => "1.006",
-    "Term::TermKey" => 0,
     "Tickit" => "0.46",
     "Tickit::Widget" => 0,
     "Tree::DAG_Node" => "1.22",
@@ -36,7 +36,7 @@ my %WriteMakefileArgs = (
     "Test::More" => "0.98",
     "Test::Refcount" => "0.07"
   },
-  "VERSION" => "0.107",
+  "VERSION" => "0.108",
   "test" => {
     "TESTS" => "t/*.t"
   }
@@ -44,11 +44,11 @@ my %WriteMakefileArgs = (
 
 
 my %FallbackPrereqs = (
+  "Adapter::Async" => "0.008",
   "File::Spec" => 0,
   "IO::Handle" => 0,
   "IPC::Open3" => 0,
   "Mixin::Event::Dispatch" => "1.006",
-  "Term::TermKey" => 0,
   "Test::CheckDeps" => "0.010",
   "Test::Fatal" => "0.010",
   "Test::More" => "0.98",
