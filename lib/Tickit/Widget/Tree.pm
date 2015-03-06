@@ -940,6 +940,14 @@ Unsubscribes from an event. Newer code would call this method on L</bus> instead
 
 sub unsubscribe_from_event { shift->bus->unsubscribe_from_event(@_) }
 
+=head2 invoke_event
+
+Invokes an event. Newer code would call this method on L</bus> instead.
+
+=cut
+
+sub invoke_event { shift->bus->invoke_event(@_) }
+
 1;
 
 __END__
