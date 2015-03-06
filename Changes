@@ -5,6 +5,9 @@ Revision history for {{$dist->name}}
 	* Rendering and tree population now attempts to avoid unnecessary work. This does not affect
 	static tree layouts, but anything using adapters will now limit updates to avoid changing
 	offscreen areas of the tree.
+	* Node transformations - allows code to be applied to nodes before rendering, similar to
+	the transformation support in Tickit::Widget::Table.
+	* Tickit::Widget::Tree::Node subclass for Tree::DAG_Node, for some common operations on nodes.
 
 0.114     2015-02-06 19:37:36+00:00 Europe/London
 	No new features.
