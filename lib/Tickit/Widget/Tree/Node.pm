@@ -29,6 +29,14 @@ sub new {
 	$self
 }
 
+sub upgrade {
+	my ($class, $tree, $node) = @_;
+	bless $node, $class;
+	Scalar::Util::weaken($node->attributes->{tree} = $tree);
+	$class->upgrade($tree, $_) for grep !$_->isa($class), $node->daughters;
+	$node
+}
+
 =head2 recurse:method
 
 Recurse through all child nodes.

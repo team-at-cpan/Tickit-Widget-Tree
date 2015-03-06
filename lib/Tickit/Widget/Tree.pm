@@ -209,7 +209,9 @@ Instantiate. Takes the following named parameters:
 
 =over 4
 
-=item * root - the root L<Tickit::Widget::Tree::Node>
+=item * root - the root L<Tickit::Widget::Tree::Node>. Note that this will be silently upgraded if you
+provide something else - thus a L<Tree::DAG_Node> can be used without needing to convert it manually, but
+please note that this will *modify* your data structure, it won't clone it to create a new one.
 
 =item * on_activate - coderef to call when a node has been activated (usually
 via 'enter' keypress)
@@ -276,6 +278,7 @@ sub new {
 			tree => $self
 		}
 	});
+	$root = $class->node_class->upgrade($self, $root) unless $root->isa($class->node_class);
 	$self->add_item_under_parent($root, $data) if defined $data;
 
 	$self->{root} = $root;
