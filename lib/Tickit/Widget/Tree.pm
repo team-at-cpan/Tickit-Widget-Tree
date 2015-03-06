@@ -30,6 +30,32 @@ is not backward compatible.
 
 =end HTML
 
+=head2 Types of data
+
+A basic tree would display a hierarchy of strings.
+
+If you want more interesting rendering, L<String::Tagged> can be used to apply attributes,
+such as colours or bold/italic.
+
+More complicated layouts can be achieved with nested widgets.
+
+=head2 Data sources
+
+There's two main ways of providing data.
+
+=head3 Static data
+
+A simple static tree layout can be constructed from Perl data structures
+(arrayrefs, hashrefs and strings).
+
+=head3 Adapter as data source
+
+It is also possible to generate tree layouts which react to changes to the underlying
+data. These "dynamic" trees use the L<Adapter::Async> to interact with a data source.
+
+See L<Adapter::Async> for more information, and the notes in L<Tickit::Widget::Table>
+may help as well.
+
 =cut
 
 use Tickit::RenderBuffer qw(LINE_SINGLE CAP_START CAP_END CAP_BOTH);
@@ -172,7 +198,8 @@ Example usage:
   ];
  );
 
-You can get "live" nodes by attaching an L<Adapter::Async::OrderedList> instance:
+You can get "live" nodes by attaching an L<Adapter::Async::OrderedList> instance, see
+L</Types of data>:
 
  Tickit:Widget::Tree->new(
   data => [
