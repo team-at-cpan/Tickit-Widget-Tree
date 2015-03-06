@@ -320,6 +320,8 @@ sub clear_old_adapter {
 
 sub start_offset { 0 }
 
+sub depth { 0 + (shift->ancestors // 0) }
+
 1;
 
 __END__
