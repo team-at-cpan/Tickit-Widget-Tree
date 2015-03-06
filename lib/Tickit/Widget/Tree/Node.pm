@@ -101,7 +101,7 @@ sub adapter_for_node {
 	# Okay, now we have an adapter, we need to subscribe to all the events, applying
 	# each change to the tree and requesting a refresh in the process.
 	if($self->attributes->{adapter}->isa('Adapter::Async::OrderedList')) {
-		my $lines = $tree->window->lines;
+		my $lines = $tree->window ? $tree->window->lines : 10;
 		Scalar::Util::weaken(my $n = $self);
 		Scalar::Util::weaken(my $widget = $tree);
 		$self->attributes->{adapter}->bus->subscribe_to_event(
