@@ -97,7 +97,13 @@ sub adapter_for_node {
 	# Things could get mighty confusing if we have entries already. Let's not do that.
 	$self->clear_daughters;
 
-	$self->attributes->{adapter} = shift if @_;
+	# Allow setting an adapter manually - we also allowing clearing an existing adapter.
+	# When removing an adapter, we'll return this node to 'static' state.
+	if(@_) {
+		$self->attributes->{adapter} = shift;
+		return undef unless $self->attributes->{adapter};
+	}
+
 	$self->attributes->{adapter} //= do {
 		my $adapter = Adapter::Async::OrderedList::Array->new(
 			# TODO should populate from existing child nodes? meh, probably
