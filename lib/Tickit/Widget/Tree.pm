@@ -139,71 +139,7 @@ BEGIN {
 		'<->'                => 'close_node';
 }
 
-=head2 cols
-
-Widget columns.
-
-=cut
-
-sub cols {
-	my $self = shift;
-	$self->calculate_size unless exists $self->{cols};
-	return $self->{cols};
-}
-
-=head2 lines
-
-Widget lines.
-
-=cut
-
-sub lines {
-	my $self = shift;
-	$self->calculate_size unless exists $self->{lines};
-	return $self->{lines};
-}
-
-=head2 calculate_size
-
-Calculate the minimum size needed to contain the full tree with all nodes expanded.
-
-Used internally.
-
-=cut
-
-sub calculate_size {
-	my $self = shift;
-	my $w = 0;
-	my $h = 0;
-	my $code = sub {
-		my ($code, $node, $depth, $y) = @_;
-
-		my $has_children = $node->daughters ? 1 : 0;
-
-		# Our label - root isn't shown, and we don't want a blank
-		# line at the top either, so we don't update the pointer for root
-		unless($node->is_root) {
-			# We only need to draw this if we're inside the rendering area
-			$w = max $w, 1 + 3 * $depth + textwidth($node->name);
-
-			# ... but we always want to update our current row pointer
-			++$y;
-		}
-
-		# We can stop here if we're empty
-		return $y unless $has_children;
-
-		# Recurse into each child node, updating our height as we go
-		my @child = $node->daughters;
-
-		$y = $code->($code, $_, $depth + 1, $y) for @child;
-		return $y;
-	};
-	$h = $code->($code, $self->root, 0, 0);
-	$self->{lines} = $h + 1;
-	$self->{cols} = $w;
-	return $self;
-}
+=head1 METHODS
 
 =head2 new
 
@@ -279,8 +215,83 @@ sub new {
 	$self
 }
 
-sub bus { shift->{bus} //= Mixin::Event::Dispatch::Bus->new }
+=head2 node_class
+
+=cut
+
 sub node_class { 'Tree::DAG_Node' }
+
+=head2 bus
+
+=cut
+
+sub bus { shift->{bus} //= Mixin::Event::Dispatch::Bus->new }
+
+=head2 cols
+
+Widget columns.
+
+=cut
+
+sub cols {
+	my $self = shift;
+	$self->calculate_size unless exists $self->{cols};
+	return $self->{cols};
+}
+
+=head2 lines
+
+Widget lines.
+
+=cut
+
+sub lines {
+	my $self = shift;
+	$self->calculate_size unless exists $self->{lines};
+	return $self->{lines};
+}
+
+=head2 calculate_size
+
+Calculate the minimum size needed to contain the full tree with all nodes expanded.
+
+Used internally.
+
+=cut
+
+sub calculate_size {
+	my $self = shift;
+	my $w = 0;
+	my $h = 0;
+	my $code = sub {
+		my ($code, $node, $depth, $y) = @_;
+
+		my $has_children = $node->daughters ? 1 : 0;
+
+		# Our label - root isn't shown, and we don't want a blank
+		# line at the top either, so we don't update the pointer for root
+		unless($node->is_root) {
+			# We only need to draw this if we're inside the rendering area
+			$w = max $w, 1 + 3 * $depth + textwidth($node->name);
+
+			# ... but we always want to update our current row pointer
+			++$y;
+		}
+
+		# We can stop here if we're empty
+		return $y unless $has_children;
+
+		# Recurse into each child node, updating our height as we go
+		my @child = $node->daughters;
+
+		$y = $code->($code, $_, $depth + 1, $y) for @child;
+		return $y;
+	};
+	$h = $code->($code, $self->root, 0, 0);
+	$self->{lines} = $h + 1;
+	$self->{cols} = $w;
+	return $self;
+}
 
 =head2 add_item_under_parent
 
