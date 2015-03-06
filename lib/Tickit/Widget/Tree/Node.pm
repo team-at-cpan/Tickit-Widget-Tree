@@ -5,6 +5,7 @@ use warnings;
 
 use parent qw(Tree::DAG_Node);
 
+# Can't do this, because Tree::DAG_Node
 #use overload
 #	'""' => 'to_string',
 #	bool => sub { 1 },
