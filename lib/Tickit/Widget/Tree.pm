@@ -948,6 +948,18 @@ Invokes an event. Newer code would call this method on L</bus> instead.
 
 sub invoke_event { shift->bus->invoke_event(@_) }
 
+=head2 adapter_for_node
+
+Calls L<Tickit::Widget::Tree::Node/adapter_for_node>.
+
+=cut
+
+sub adapter_for_node {
+	my $self = shift;
+	my $node = shift;
+	$node->adapter_for_node($self => @_);
+}
+
 1;
 
 __END__
