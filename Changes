@@ -2,6 +2,13 @@ Revision history for {{$dist->name}}
 
 {{$NEXT}}
 
+0.109     2015-01-24 14:05:05+00:00 Europe/London
+	Features:
+	* Cursor is now hidden by default
+	* Rendering changes - root node has a vertical line off the top
+	of the window, and nodes with no children have a half-width
+	joining line.
+
 0.108     2014-08-30 02:15:42+01:00 Europe/London
 	Features:
 	* Provides ->position_adapter for monitoring current tree position
