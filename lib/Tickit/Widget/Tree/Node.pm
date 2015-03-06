@@ -186,7 +186,7 @@ sub adapter_for_node {
 	$self->attributes->{adapter}
 }
 
-my $intersect = sub {
+sub _intersect {
 	my $start = shift;
 	my $end = shift;
 	while(my ($l, $r) = splice @_, 0, 2) {
@@ -195,13 +195,13 @@ my $intersect = sub {
 	}
 	return undef if $start > $end;
 	[ $start, $end ]
-};
+}
 
 sub splice_handler {
 	my ($self, $tree, $start, $length, $items) = @_;
 	my $lines = $tree->window->lines;
 	my $delta = max $length, scalar(@$items);
-	return unless my $int = $intersect->(
+	return unless my $int = _intersect(
 		$self->start_offset,
 		$self->start_offset + $lines,
 		$start,
