@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+0.110     2015-01-25 15:05:27+00:00 Europe/London
 	Features:
 	* Ability to attach Adapter::Async::OrderedList instances to nodes, for live updates
 
