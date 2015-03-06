@@ -540,12 +540,110 @@ sub highlight_node {
 			$self->expose_node($prev);
 		}
 
-		# Not very efficient. We should be able to expose previous and current instead?
 		$self->expose_node($node);
+		$self->scroll_to_node($node);
 		return $self
 	}
 	($self->{highlight_node}) = $self->root->daughters unless $self->{highlight_node};
 	return $self->{highlight_node};
+}
+
+=head2 scroll_to_node
+
+Applies minimal adjustment to visible nodes to ensure that the given
+node is within the window area.
+
+=cut
+
+sub scroll_to_node {
+	my ($self, $node) = @_;
+
+	# Tree::DAG_Node
+	if($node->is_before($self->top_node)) {
+		# We have to scroll up, because the target node is above the current top node
+		$self->top_node($node);
+		$self->expose;
+		return $self;
+	}
+	if($node->is_after($self->bottom_node)) {
+		# We have to scroll down, because the target node is below the current bottom node
+		$self->bottom_node($node);
+		$self->expose;
+		return $self;
+	}
+
+	$self
+}
+
+sub top_node {
+	my $self = shift;
+
+	if(@_) {
+		$self->{top_node} = shift;
+		$self->update_visible_nodes_from_top if $self->window;
+		return $self;
+	}
+	unless($self->{top_node}) {
+		($self->{top_node}) = $self->root->daughters;
+		$self->update_visible_nodes_from_top if $self->window;
+	}
+	return $self->{top_node};
+}
+
+sub bottom_node {
+	my $self = shift;
+
+	if(@_) {
+		$self->{bottom_node} = shift;
+		$self->update_visible_nodes_from_top if $self->window;
+		return $self;
+	}
+	unless($self->{bottom_node}) {
+		($self->{bottom_node}) = $self->root->daughters;
+		$self->update_visible_nodes_from_top if $self->window;
+	}
+	return $self->{bottom_node};
+}
+
+sub update_visible_nodes_from_bottom {
+	my ($self) = @_;
+	# Walk down to the target node. Once we reach the target, we can determine
+	# the top node by retracing lines so that target is within the visible area.
+	# Note that this is a no-op if the target is already visible.
+
+	my $win = $self->window or return $self;
+	my $lines = $win->lines;
+	my $node = $self->{bottom_node};
+	while($lines--) {
+		$node = $node->prev;
+		$node->lines($lines);
+		last if $node->is_root;
+	}
+	$self->{top_node} = $node;
+	if($node->is_root) {
+		#
+	} else {
+		$node->mother->start_offset($node->my_daughter_index)
+	}
+	$self
+}
+
+sub update_visible_nodes_from_top {
+	my ($self) = @_;
+	# Walk down to the target node. Once we reach the target, we can determine
+	# the top node by retracing lines so that target is within the visible area.
+	# Note that this is a no-op if the target is already visible.
+
+	my $win = $self->window or return $self;
+	my $lines = $win->lines;
+	my $node = $self->{top_node};
+	$node->mother->start_offset($node->my_daughter_index) unless $node->is_root;
+	while($lines--) {
+		$node = $node->next;
+		$node->lines($lines);
+		last if $node->is_root;
+	}
+	$self
 }
 
 =head2 cols
