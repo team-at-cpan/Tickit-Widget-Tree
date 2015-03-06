@@ -38,12 +38,16 @@ use Tickit::RenderBuffer qw(LINE_SINGLE CAP_START CAP_END CAP_BOTH);
 use Tree::DAG_Node;
 use Scalar::Util;
 use List::Util qw(max);
+use List::UtilsBy qw(sort_by);
 use Tickit::Utils qw(textwidth);
 use Tickit::Style;
+
+use Variable::Disposition qw(retain_future);
 
 use Log::Any qw($log);
 
 use Adapter::Async::OrderedList::Array;
+use Tickit::Widget::Tree::AdapterTransformation;
 
 use constant CLEAR_BEFORE_RENDER => 0;
 use constant WIDGET_PEN_FROM_STYLE => 1;
@@ -232,7 +236,7 @@ You can get "live" nodes by attaching an L<Adapter::Async::OrderedList> instance
    $loop->delay_future(
     after => 0.5
    )->then(sub {
-    $adapter->push([ $item ]) 
+    $adapter->push([ $item ])
    })
   } foreach => [qw(live changes work like this)]
  )->get;
@@ -295,9 +299,18 @@ sub add_item_under_parent {
 	my ($self, $parent, $item) = @_;
 
 	# Adapters are special
-	if(Scalar::Util::blessed($item) && $item->isa('Adapter::Async::OrderedList')) {
-		$self->adapter_for_node($parent => $item);
-		return $parent;
+	if(Scalar::Util::blessed($item)) {
+		if($item->isa('Adapter::Async::OrderedList')) {
+			$self->adapter_for_node($parent => $item);
+			return $parent;
+		} elsif($item->isa('Adapter::Async::UnorderedMap')) {
+			$self->adapter_for_node($parent => $item);
+			return $parent;
+		} elsif($item->isa('Tickit::Widget::Tree::AdapterTransformation')) {
+			$log->debugf("We have a transformation %s", $item);
+			$self->adapter_for_node($parent => $item->adapter, $item);
+			return $parent;
+		}
 	}
 
 	my @nodes = $self->nodes_from_data($item);
@@ -335,11 +348,13 @@ Currently this supports:
 
 =item * L<String::Tagged> instances - used as the node label, standard formatting (b/fg/bg)
 
-=item * arrayrefs - 
+=item * arrayrefs - lists of things, probably recursive as well
 
 =item * hashrefs - one text node will be created for each key, using the key as the name, and the content will be generated recursively using this method again
 
 =item * L<Adapter::Async::OrderedList> instances - "live" nodes that autoupdate
+
+=item * L<Adapter::Async::UnorderedMap> instances - like list, but with names as well
 
 =back
 
@@ -617,10 +632,11 @@ sub adapter_for_node {
 			data => []
 		);
 	};
+	$node->attributes->{transformation} = shift if @_;
 
 	# Okay, now we have an adapter, we need to subscribe to all the events, applying
 	# each change to the tree and requesting a refresh in the process.
-	{
+	if($node->attributes->{adapter}->isa('Adapter::Async::OrderedList')) {
 		Scalar::Util::weaken(my $n = $node);
 		Scalar::Util::weaken(my $widget = $self);
 		$node->attributes->{adapter}->bus->subscribe_to_event(
@@ -654,20 +670,66 @@ sub adapter_for_node {
 			)
 		);
 		push @{$node->attributes->{adapter_events}}, $node->attributes->{adapter}->bus, @ev;
-	}
-	{ # Initial population
-		my @nodes = $node->daughters;
-		$node->attributes->{adapter}->all(
-			on_item => sub {
-				my $item = shift;
-				# $log->debugf("Adding [%s] for initial population", $item);
-				my @expanded = $self->nodes_from_data($node);
-				# $log->debugf("* [%s]", $_) for @expanded;
-				push @nodes, @expanded
-			},
-		)->on_done(sub {
-			$node->set_daughters(@nodes);
-		});
+		{ # Initial population
+			my @nodes = $node->daughters;
+			$node->attributes->{adapter}->all(
+				on_item => sub {
+					my $item = shift;
+					# $log->debugf("Adding [%s] for initial population", $item);
+					my @expanded = $self->nodes_from_data($node);
+					# $log->debugf("* [%s]", $_) for @expanded;
+					push @nodes, @expanded
+				},
+			)->on_done(sub {
+				$node->set_daughters(@nodes);
+			});
+		}
+	} elsif($node->attributes->{adapter}->isa('Adapter::Async::UnorderedMap')) {
+		Scalar::Util::weaken(my $n = $node);
+		Scalar::Util::weaken(my $widget = $self);
+		my $add = sub {
+			my ($k, $v) = @_;
+			eval {
+				if(my $trans = $n->attributes->{transformation}) {
+					my $old_key = $k;
+					$k = $trans->key($k, $v, 0, $n->attributes->{adapter}, $self);
+					$v = $trans->item($k, $v, 0, $n->attributes->{adapter}, $self);
+				}
+				my @nodes = $n->daughters;
+				my $new = $self->nodes_from_data($k);
+				$new->set_daughters($self->nodes_from_data($v));
+				push @nodes, $new;
+				$n->set_daughters(sort_by { $_->name } $new, @nodes);
+				$widget->redraw; 1
+			} or do {
+				$log->errorf("Exception on add - $@");
+			}
+		};
+		$node->attributes->{adapter}->bus->subscribe_to_event(
+			my @ev = (
+				clear => sub {
+					$n->set_daughters();
+					# FIXME slow
+					$widget->redraw;
+				},
+				set_key => sub {
+					my ($ev, $k, $v) = @_;
+					$add->($k => $v);
+				},
+				delete_key => sub {
+					my ($ev, $k, $v) = @_;
+					eval {
+						my @nodes = $n->daughters;
+						List::UtilsBy::extract_by { $_ == $v } @nodes;
+						$n->set_daughters(@nodes);
+						$widget->redraw; 1
+					} or do {
+						$log->errorf("Exception on splice - $@");
+					}
+				},
+			)
+		);
+		retain_future($node->attributes->{adapter}->each($add));
 	}
 	$node->attributes->{adapter}
 }
