@@ -1006,7 +1006,7 @@ sub key_down_tree {
 	my $self = shift;
 	my $node = $self->highlight_node;
 	return 1 unless $node->daughters;
-	$node->attributes->{open} = 1 unless $node->attributes->{open};
+	$node->open unless $node->is_open;
 	($node) = $node->daughters;
 	$self->highlight_node($node);
 	1
@@ -1020,7 +1020,7 @@ Open this node.
 
 sub key_open_node {
 	my $self = shift;
-	$self->highlight_node->attributes->{open} = 1;
+	$self->highlight_node->open unless $self->highlight_node->is_open;
 	$self->redraw;
 	1
 }
@@ -1033,7 +1033,7 @@ Close this node.
 
 sub key_close_node {
 	my $self = shift;
-	$self->highlight_node->attributes->{open} = 0;
+	$self->highlight_node->close if $self->highlight_node->is_open;
 	$self->redraw;
 	1
 }
@@ -1106,8 +1106,6 @@ Plenty of features and bugfixes left on the list, in no particular order:
 =item * Support nested widgets
 
 =item * Node reordering
-
-=item * Detect changes to the underlying L<Tree::DAG_Node> structure
 
 =back
 
