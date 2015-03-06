@@ -112,106 +112,116 @@ sub adapter_for_node {
 			data => []
 		);
 	};
+
+	# transformations probably apply to non-adapter nodes as well but for now we
+	# combine adapter+transformation config. TODO improve this
 	$self->attributes->{transformation} = shift if @_;
 
 	# Okay, now we have an adapter, we need to subscribe to all the events, applying
 	# each change to the tree and requesting a refresh in the process.
-	if($self->attributes->{adapter}->isa('Adapter::Async::OrderedList')) {
-		my $lines = $tree->window ? $tree->window->lines : 10;
-		Scalar::Util::weaken(my $n = $self);
-		Scalar::Util::weaken(my $widget = $tree);
-		$self->attributes->{adapter}->bus->subscribe_to_event(
-			my @ev = (
-				clear => sub {
-					$n->clear_daughters;
-					# FIXME slow
-					$widget->redraw;
-				},
-				splice => sub {
-					my ($ev, $start, $length, $added, $removed) = @_;
-					$n->splice_handler($tree, $start, $length, $added);
-				},
-				move => sub {
-					# warn "move!"
-					# FIXME uh...
-				},
-			)
-		);
-		push @{$self->attributes->{adapter_events}}, $self->attributes->{adapter}->bus, @ev;
-		{ # Initial population
-			my @nodes = $self->daughters;
-			$self->attributes->{adapter}->all(
-				on_item => sub {
-					my $item = shift;
-					# $log->debugf("Adding [%s] for initial population", $item);
-					my @expanded = $tree->nodes_from_data($self);
-					# $log->debugf("* [%s]", $_) for @expanded;
-					push @nodes, @expanded
-				},
-			)->on_done(sub {
-				$self->set_daughters(@nodes);
-			});
-		}
-	} elsif($self->attributes->{adapter}->isa('Adapter::Async::UnorderedMap')) {
-		Scalar::Util::weaken(my $n = $self);
-		Scalar::Util::weaken(my $widget = $tree);
-		my $add = sub {
-			my ($k, $v) = @_;
-			eval {
-				if(my $trans = $n->attributes->{transformation}) {
-					my $old_key = $k;
-					$k = $trans->key($k, $v, 0, $n->attributes->{adapter}, $tree);
-					$v = $trans->item($k, $v, 0, $n->attributes->{adapter}, $tree);
-				}
-				my @nodes = $n->daughters;
-				my $new = $tree->nodes_from_data($k);
-				$new->set_daughters($tree->nodes_from_data($v));
-				push @nodes, $new;
-				$n->set_daughters(sort_by { $_->name } $new, @nodes);
-				$widget->redraw; 1
-			} or do {
-				$log->errorf("Exception on add - $@");
-			}
-		};
-		$self->attributes->{adapter}->bus->subscribe_to_event(
-			my @ev = (
-				clear => sub {
-					$n->set_daughters();
-					# FIXME slow
-					$widget->redraw;
-				},
-				set_key => sub {
-					my ($ev, $k, $v) = @_;
-					$add->($k => $v);
-				},
-				delete_key => sub {
-					my ($ev, $k, $v) = @_;
-					eval {
-						my @nodes = $n->daughters;
-						List::UtilsBy::extract_by { $_ == $v } @nodes;
-						$n->set_daughters(@nodes);
-						$widget->redraw; 1
-					} or do {
-						$log->errorf("Exception on splice - $@");
-					}
-				},
-			)
-		);
-		retain_future($self->attributes->{adapter}->each($add));
-	}
+	$self->prepare_adapter($tree);
+
 	$self->attributes->{adapter}
 }
 
-sub _intersect {
-	my $start = shift;
-	my $end = shift;
-	while(my ($l, $r) = splice @_, 0, 2) {
-		$start = max $start, $l;
-		$end = min $end, $r;
-	}
-	return undef if $start > $end;
-	[ $start, $end ]
+=head2 prepare_adapter
+
+Attaches events and prepopulates node children when a new adapter is added.
+
+=cut
+
+sub prepare_adapter {
+	my ($self, $tree) = @_;
+	my $adapter = $self->attributes->{adapter};
+	return $self->prepare_adapter_list($tree, $adapter) if $adapter->isa('Adapter::Async::OrderedList');
+	return $self->prepare_adapter_map($tree, $adapter) if $adapter->isa('Adapter::Async::UnorderedMap');
+	die "unhandled adapter type $adapter";
 }
+
+sub prepare_adapter_map {
+	my ($self, $tree, $adapter) = @_;
+	Scalar::Util::weaken(my $n = $self);
+	Scalar::Util::weaken(my $widget = $tree);
+	my $lines = $tree->window ? $tree->window->lines : 10;
+	my $add = sub {
+		my ($k, $v) = @_;
+		eval {
+			if(my $trans = $n->attributes->{transformation}) {
+				my $old_key = $k;
+				$k = $trans->key( $k, $v, 0, $adapter, $tree);
+				$v = $trans->item($k, $v, 0, $adapter, $tree);
+			}
+			my @nodes = $n->daughters;
+			my $new = $tree->nodes_from_data($k);
+			$log->tracef("Had %s after adding %s", $new, $k);
+			$new->set_daughters($tree->nodes_from_data($v));
+			push @nodes, $new;
+			$n->set_daughters(sort_by { $_->name } $new, @nodes);
+			$widget->redraw; 1
+		} or do {
+			$log->errorf("Exception on add - $@");
+		}
+	};
+	$adapter->bus->subscribe_to_event(
+		my @ev = (
+			clear => sub {
+				$n->set_daughters();
+				# FIXME slow
+				$widget->redraw;
+			},
+			set_key => sub {
+				my ($ev, $k, $v) = @_;
+				return $add->($k => $v) if $n->daughters < $lines;
+				return $add->($k => $v) if ($n->daughters)[-1] gt $k;
+			},
+			delete_key => sub {
+				my ($ev, $k, $v) = @_;
+				eval {
+					my @nodes = $n->daughters;
+					List::UtilsBy::extract_by { $_ == $v } @nodes;
+					$n->set_daughters(@nodes);
+					$widget->redraw; 1
+				} or do {
+					$log->errorf("Exception on splice - $@");
+				}
+			},
+		)
+	);
+	retain_future($adapter->each($add));
+}
+
+sub prepare_adapter_list {
+	my ($self, $tree, $adapter) = @_;
+	my $lines = $tree->window ? $tree->window->lines : 10;
+	Scalar::Util::weaken(my $n = $self);
+	Scalar::Util::weaken(my $widget = $tree);
+	$adapter->bus->subscribe_to_event(
+		my @ev = (
+			clear => sub {
+				$n->clear_daughters;
+				# FIXME slow
+				$widget->redraw;
+			},
+			splice => sub {
+				my ($ev, $start, $length, $added, $removed) = @_;
+				$n->splice_handler($tree, $start, $length, $added);
+			},
+			move => sub {
+				# warn "move!"
+				# FIXME uh...
+			},
+		)
+	);
+	push @{$self->attributes->{adapter_events}}, $adapter->bus, @ev;
+	# Initial population
+	$self->fill_missing_nodes;
+}
+
+=head2 splice_handler
+
+Manages updates caused by splice events.
+
+=cut
 
 sub splice_handler {
 	my ($self, $tree, $start, $length, $items) = @_;
@@ -275,6 +285,8 @@ sub adapter { shift->attributes->{adapter} }
 
 Populates any missing child nodes from the adapter.
 
+Will mark this node as updating while the missing nodes are added.
+
 =cut
 
 sub fill_missing_nodes {
@@ -334,9 +346,48 @@ sub clear_old_adapter {
 	}
 }
 
+=head2 start_offset
+
+Returns the current offset from the start of the adapter. Used when this node is partially
+visible - i.e. the first child nodes are not in the rendered area. If the top of the node
+is visible then this will be zero.
+
+=cut
+
 sub start_offset { 0 }
 
+=head2 depth
+
+Tree depth (= number of ancestors) for this node.
+
+=cut
+
 sub depth { 0 + (shift->ancestors // 0) }
+
+=head2 tree
+
+Returns the L<Tickit::Widget::Tree> instance.
+
+=cut
+
+sub tree { shift->attributes->{tree} }
+
+=head2 _intersect
+
+Helper function for determining the intersection between two ranges.
+
+=cut
+
+sub _intersect {
+	my $start = shift;
+	my $end = shift;
+	while(my ($l, $r) = splice @_, 0, 2) {
+		$start = max $start, $l;
+		$end = min $end, $r;
+	}
+	return undef if $start > $end;
+	[ $start, $end ]
+}
 
 1;
 
