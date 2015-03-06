@@ -45,7 +45,7 @@ Opens this node.
 =cut
 
 sub open {
-	$_[0]->attributes->{open} = 0;
+	$_[0]->attributes->{open} = 1;
 	$_[0]->tree->expose_node($_[0]);
 	$_[0]
 }
@@ -57,7 +57,7 @@ Closes this node.
 =cut
 
 sub close {
-	$_[0]->attributes->{open} = 1;
+	$_[0]->attributes->{open} = 0;
 	$_[0]->tree->expose_node($_[0]);
 	$_[0]
 }
