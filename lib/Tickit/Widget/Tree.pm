@@ -988,23 +988,10 @@ sub iterate_nodes {
 	while($code->($node, $line++, $depth)) {
 		# Tree::DAG_Node
 		# Iterate into node if we're open, but only if there's any nodes under it
-		if($node->is_open && $node->daughters) {
-			($node) = $node->daughters;
-			++$depth;
-		} else {
-			# Waltz up and right until we find a candidate for "next" node
-			while(!$node->is_root) {
-				if($node->right_sister) {
-					$node = $node->right_sister;
-					last;
-				}
-				$node = $node->mother;
-			}
-			# At this point we may have hit the root node. That's fine, we'll bail out
-			# on the next iteration if so.
-			$depth = $node->depth;
-		}
+		$node = $node->next or return $line;
+		$depth = $node->depth;
 	}
+	return $line;
 }
 
 =head2 render_to_rb
