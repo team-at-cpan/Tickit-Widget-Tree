@@ -23,12 +23,20 @@ use Variable::Disposition qw(retain_future);
 use Future::Utils qw(repeat);
 use List::UtilsBy qw(sort_by);
 
+=head2 new
+
+=cut
+
 sub new {
 	my ($class, $args) = @_;
 	my $self = $class->SUPER::new($args);
 	Scalar::Util::weaken($self->attributes->{tree});
 	$self
 }
+
+=head2 upgrade
+
+=cut
 
 sub upgrade {
 	my ($class, $tree, $node) = @_;
@@ -38,13 +46,13 @@ sub upgrade {
 	$node
 }
 
-=head2 recurse:method
+=head2 recurse
 
 Recurse through all child nodes.
 
 =cut
 
-sub recurse:method {
+sub recurse {
 	my ($self, $code) = @_;
 	$self->walk_down({
 		callback => $code
@@ -60,7 +68,7 @@ Returns C<$self>.
 
 =cut
 
-sub open {
+sub open:method {
 	$_[0]->attributes->{open} = 1;
 	$_[0]->prepare_adapter;
 	$_[0]->tree->expose_node($_[0]);
@@ -76,7 +84,7 @@ Returns C<$self>.
 
 =cut
 
-sub close {
+sub close:method {
 	$_[0]->attributes->{open} = 0;
 	$_[0]->clear_old_adapter;
 	$_[0]->tree->expose_node($_[0]);
@@ -160,6 +168,10 @@ sub prepare_adapter {
 	die "unhandled adapter type $adapter";
 }
 
+=head2 prepare_adapter_map
+
+=cut
+
 sub prepare_adapter_map {
 	my ($self, $adapter) = @_;
 	my $tree = $self->tree;
@@ -232,6 +244,10 @@ sub prepare_adapter_map {
 		})
 	);
 }
+
+=head2 prepare_adapter_list
+
+=cut
 
 sub prepare_adapter_list {
 	my ($self, $adapter) = @_;
@@ -382,6 +398,10 @@ sub fill_missing_nodes {
 	)
 }
 
+=head2 clear_old_adapter
+
+=cut
+
 sub clear_old_adapter {
 	my ($self) = @_;
 	$self->attributes->{adapter_events} ||= [];
@@ -415,6 +435,10 @@ Returns the L<Tickit::Widget::Tree> instance.
 
 sub tree { shift->attributes->{tree} }
 
+=head2 lines
+
+=cut
+
 sub lines {
 	my $self = shift;
 	return $self->{lines} //= ($self->tree->window ? $self->tree->window->lines : 100) unless @_;
@@ -422,12 +446,20 @@ sub lines {
 	$self
 }
 
+=head2 start_offset
+
+=cut
+
 sub start_offset {
 	my $self = shift;
 	return $self->{start_offset} //= 0;
 	$self->{start_offset} = shift;
 	$self
 }
+
+=head2 prev
+
+=cut
 
 sub prev {
 	my ($self) = @_;
@@ -440,6 +472,10 @@ sub prev {
 	}
 	return $node
 }
+
+=head2 next
+
+=cut
 
 sub next {
 	my ($self) = @_;
@@ -502,6 +538,15 @@ sub is_after {
 	}
 }
 
+=head2 to_string
+
+=cut
+
+sub to_string {
+	my ($self) = @_;
+	"[" . $self->name . "@" . $self->address . "]";
+}
+
 =head2 _intersect
 
 Helper function for determining the intersection between two ranges.
@@ -517,11 +562,6 @@ sub _intersect {
 	}
 	return undef if $start > $end;
 	[ $start, $end ]
-}
-
-sub to_string {
-	my ($self) = @_;
-	"[" . $self->name . "@" . $self->address . "]";
 }
 
 1;
