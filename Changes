@@ -1,6 +1,18 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	Features:
+	* ->add_node_under_parent to allow adding complex data structures - this is an extension
+	of the handling that we already had in place for ->new(data => ...)
+
+	Bug fixes:
+	* Scalar::Util wasn't being loaded, needed for blessed()
+	* Supports 0 or '' as the single item to add in ->new(data => 0)
+
+	Dependencies:
+	* Log::Any, used for flagging exceptions that weren't previously being reported (eventually
+	this will be used for tracing when debug/verbose flags are enabled, since Tickit::Debug hooks
+	are better suited to Tickit core features)
 
 0.111     2015-01-25 15:45:07+00:00 Europe/London
 	Features:

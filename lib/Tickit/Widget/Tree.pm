@@ -7,7 +7,7 @@ use parent qw(Tickit::Widget Mixin::Event::Dispatch);
 
 use constant EVENT_DISPATCH_ON_FALLBACK => 0;
 
-our $VERSION = '0.111';
+our $VERSION = '0.112';
 
 =head1 NAME
 
@@ -40,6 +40,9 @@ use Scalar::Util;
 use List::Util qw(max);
 use Tickit::Utils qw(textwidth);
 use Tickit::Style;
+
+use Log::Any qw($log);
+
 use Adapter::Async::OrderedList::Array;
 
 use constant CLEAR_BEFORE_RENDER => 0;
@@ -248,42 +251,151 @@ sub new {
 	my $activate = delete $args{on_activate};
 	my $self = $class->SUPER::new(%args);
 
-	if($data) {
-		my $add;
-		$add = sub {
-			my ($parent, $item) = @_;
-			if(my $ref = ref $item) {
-				if(Scalar::Util::blessed($item)) {
-					# If we already have an adapter, apply it now - it'll autopopulate immediately
-					if($item->isa('Adapter::Async::OrderedList')) {
-						$self->adapter_for_node($parent => $item);
-					}
-				} elsif($ref eq 'ARRAY') {
-					my $prev = $parent;
-					for (@$item) {
-						if(ref) {
-							$add->($prev, $_);
-						} else {
-							my $node = $parent->new_daughter;
-							$node->name($_);
-							$prev = $node;
-						}
-					}
-				} else {
-					die 'This data was not in the desired format. Sorry.';
-				}
-			} else {
-				my $node = $parent->new_daughter;
-				$node->name($item);
-			}
-		};
-		$add->($root, $data);
-	}
+	$self->add_item_under_parent($root, $data) if defined $data;
 
 	$self->{root} = $root;
 	$self->{on_activate} = $activate;
 	$self->take_focus;
 	$self
+}
+
+=head2 add_item_under_parent
+
+Adds the given item under a parent node.
+
+Takes the following parameters:
+
+=over 4
+
+=item * $parent - which L<Tree::DAG_Node> to add this item to
+
+=item * $item - a thing to add
+
+=back
+
+Currently this supports:
+
+=over 4
+
+=item * plain strings - will be used directly as the node label
+
+=item * L<String::Tagged> instances - used as the node label, standard formatting (b/fg/bg)
+
+=item * arrayrefs
+
+=item * L<Adapter::Async::OrderedList> instances - "live" nodes that autoupdate
+
+=back
+
+Probably returns the $node that was just added, but don't count on it.
+
+=cut
+
+sub add_item_under_parent {
+	my ($self, $parent, $item) = @_;
+
+	# Adapters are special
+	warn "adding $item";
+	if(Scalar::Util::blessed($item) && $item->isa('Adapter::Async::OrderedList')) {
+		warn "got an $item";
+		$self->adapter_for_node($parent => $item);
+		return $parent;
+	}
+
+	my @nodes = $self->nodes_from_data($item);
+	$parent->add_daughter($_) for @nodes;
+	$parent;
+}
+
+sub new_named_node {
+	my ($self, $name) = @_;
+	Tree::DAG_Node->new({
+		name => "$name",
+		attributes => {
+			open => 1
+		}
+	})
+}
+
+=head2 nodes_from_data
+
+Given a scalar:
+
+=over 4
+
+=item * $item - a thing to add
+
+=back
+
+this will generate zero or more nodes that can be added to the tree.
+
+Currently this supports:
+
+=over 4
+
+=item * plain strings - will be used directly as the node label
+
+=item * L<String::Tagged> instances - used as the node label, standard formatting (b/fg/bg)
+
+=item * arrayrefs - 
+
+=item * hashrefs - one text node will be created for each key, using the key as the name, and the content will be generated recursively using this method again
+
+=item * L<Adapter::Async::OrderedList> instances - "live" nodes that autoupdate
+
+=back
+
+Probably returns the $node that was just added, but don't count on it.
+
+
+=cut
+
+sub nodes_from_data {
+	my ($self, $item) = @_;
+
+	# Empty list for undef
+	return unless defined $item;
+
+	if(my $ref = ref $item) {
+		if(Scalar::Util::blessed($item)) {
+			return $self->new_named_node($item) if $item->isa('String::Tagged');
+
+			die "Unknown blessed object - $item";
+		} elsif($ref eq 'HASH') {
+			# Expand this into one node per hash entry
+			my @nodes;
+			for my $k (sort keys %$item) {
+				my $node = $self->new_named_node($k);
+				$node->add_item_under_parent($node => $item->{$k});
+				push @nodes, $node;
+			}
+			return @nodes;
+		} elsif($ref eq 'ARRAY') {
+			# We can recurse through these immediately
+			my $prev;
+			my @nodes;
+			# $log->debugf("Starting loop for %d items", 0 + @$item);
+			for(@$item) {
+				if(!ref($_) || (Scalar::Util::blessed($_) && $_->isa('String::Tagged'))) {
+					# $log->debugf("Had text thing - %s", "$_");
+					$prev = $self->new_named_node($_);
+					push @nodes, $prev;
+				} else {
+					if($prev) {
+						# $log->debugf("Had ref, got label, adding under that - node %s gets %s", $prev, $_);
+						$self->add_item_under_parent($prev => $_);
+					} else {
+						# $log->debugf("Had ref, no label, try to expand %s", $_);
+						push @nodes, $self->nodes_from_data($_)
+					}
+				}
+			}
+			return @nodes
+		} else {
+			die 'This data was not in the desired format. Sorry.';
+		}
+	}
+	return $self->new_named_node($item);
 }
 
 =head2 root
@@ -523,11 +635,19 @@ sub adapter_for_node {
 				},
 				splice => sub {
 					my ($ev, $start, $length, $added, $removed) = @_;
-					my @nodes = $n->daughters;
-					splice @nodes, $start, $length, map Tree::DAG_Node->new({ name => $_ }), @$added;
-					$n->set_daughters(@nodes);
-					# FIXME slow
-					$widget->redraw;
+					eval {
+						my @nodes = $n->daughters;
+						# add_item_under_parent
+						# $log->debugf("Splice in [%s]", $added);
+						my @add = map $self->nodes_from_data($_), @$added;
+						# $log->debugf("* [%s]", $_) for @add;
+						splice @nodes, $start, $length, @add;
+						$n->set_daughters(@nodes);
+						# FIXME slow
+						$widget->redraw; 1
+					} or do {
+						$log->errorf("Exception on splice - $@");
+					}
 				},
 				move => sub {
 					# warn "move!"
@@ -541,7 +661,11 @@ sub adapter_for_node {
 		my @nodes = $node->daughters;
 		$node->attributes->{adapter}->all(
 			on_item => sub {
-				push @nodes, Tree::DAG_Node->new({ name => shift });
+				my $item = shift;
+				# $log->debugf("Adding [%s] for initial population", $item);
+				my @expanded = $self->nodes_from_data($node);
+				# $log->debugf("* [%s]", $_) for @expanded;
+				push @nodes, @expanded
 			},
 		)->on_done(sub {
 			$node->set_daughters(@nodes);

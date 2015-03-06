@@ -4,6 +4,7 @@ requires 'Tree::DAG_Node', '>= 1.22';
 requires 'Mixin::Event::Dispatch', '>= 1.006';
 requires 'Tickit', '>= 0.46';
 requires 'Tickit::Widget', 0;
+requires 'Log::Any', 0;
 
 on 'test' => sub {
 	requires 'Test::More', '>= 0.98';
