@@ -7,7 +7,7 @@ use parent qw(Tickit::Widget Mixin::Event::Dispatch);
 
 use constant EVENT_DISPATCH_ON_FALLBACK => 0;
 
-our $VERSION = '0.108';
+our $VERSION = '0.110';
 
 =head1 NAME
 
@@ -439,6 +439,82 @@ sub render_to_rb {
 	};
 	$code->($code, $self->root, 0, 0);
 	$rb->goto(0,0);
+}
+
+=head2 adapter_for_node
+
+Returns or sets an L<Adapter::Async::OrderedList> for the given node.
+
+This is the primary mechanism for making a node "live" - once it has been
+attached to an adapter, the child nodes will update according to events on
+the adapter.
+
+ $node = $tree->node;
+ $node->adapter_for_node->push([1,2,3]);
+
+=cut
+
+sub adapter_for_node {
+	my $self = shift;
+	my $node = shift;
+	return $node->attributes->{adapter} if $node->attributes->{adapter} && !@_;
+
+	# We previously had an adapter, and as such may have stashed some event handlers,
+	# so detach gracefully before proceeding any further.
+	$node->attributes->{adapter_events} ||= [];
+	if($node->attributes->{adapter}) {
+		my ($bus, @ev) = splice @{$node->attributes->{adapter_events}}, 0;
+		$bus->unsubscribe_from_event(@ev) if $bus && @ev;
+	}
+
+	$node->attributes->{adapter} = shift if @_;
+	$node->attributes->{adapter} //= do {
+		my $adapter = Adapter::Async::OrderedList::Array->new(
+			# TODO should populate from existing child nodes
+			data => []
+		);
+	};
+
+	# Okay, now we have an adapter, we need to subscribe to all the events, applying
+	# each change to the tree and requesting a refresh in the process.
+	{
+		Scalar::Util::weaken(my $n = $node);
+		Scalar::Util::weaken(my $widget = $self);
+		$node->attributes->{adapter}->bus->subscribe_to_event(
+			my @ev = (
+				clear => sub {
+					# warn "clear!"
+					$n->set_daughters();
+					# FIXME slow
+					$widget->redraw;
+				},
+				splice => sub {
+					my ($ev, $start, $length, $added, $removed) = @_;
+					my @nodes = $n->daughters;
+					splice @nodes, $start, $length, map Tree::DAG_Node->new({ name => $_ }), @$added;
+					$n->set_daughters(@nodes);
+					# FIXME slow
+					$widget->redraw;
+				},
+				move => sub {
+					# warn "move!"
+					# FIXME uh...
+				},
+			)
+		);
+		push @{$node->attributes->{adapter_events}}, $node->attributes->{adapter}->bus, @ev;
+	}
+	{ # Initial population
+		my @nodes = $node->daughters;
+		$node->attributes->{adapter}->all(
+			on_item => sub {
+				push @nodes, Tree::DAG_Node->new({ name => shift });
+			},
+		)->on_done(sub {
+			$node->set_daughters(@nodes);
+		});
+	}
+	$node->attributes->{adapter}
 }
 
 =head2 position_adapter
