@@ -139,11 +139,23 @@ BEGIN {
 		'<->'                => 'close_node';
 }
 
+=head2 cols
+
+Widget columns.
+
+=cut
+
 sub cols {
 	my $self = shift;
 	$self->calculate_size unless exists $self->{cols};
 	return $self->{cols};
 }
+
+=head2 lines
+
+Widget lines.
+
+=cut
 
 sub lines {
 	my $self = shift;
@@ -267,6 +279,7 @@ sub new {
 	$self
 }
 
+sub bus { shift->{bus} //= Mixin::Event::Dispatch::Bus->new }
 sub node_class { 'Tree::DAG_Node' }
 
 =head2 add_item_under_parent
@@ -769,6 +782,55 @@ sub position_adapter {
 	}
 }
 
+=head2 highlight_node
+
+Change the currently highlighted node.
+
+=cut
+
+sub highlight_node {
+	my $self = shift;
+	if(@_) {
+		my $prev = delete $self->{highlight_node};
+		$self->{highlight_node} = shift;
+		$self->invoke_event(
+			highlight_node => $self->{highlight_node}, $prev
+		);
+		$self->{move_cursor} = 1;
+
+		if($prev) {
+			# If we had a previous item, we'll be wanting to update our
+			# position adapter as well to indicate where we are in the
+			# tree. Thankfully Tree::DAG_Node makes this relatively easy:
+			# find common ancestor, splice new subtree over everything
+			# from that ancestor downwards.
+			my $ancestor = $prev->common(
+				$self->{highlight_node}
+			);
+			my $node = $self->{highlight_node};
+			my @extra = $node;
+			while($node != $ancestor) {
+				$node = $node->mother;
+				unshift @extra, $node;
+			}
+
+			# Might be undef, for reasons I can't remember offhand.
+			my $depth = $ancestor->ancestors // 0;
+			$self->position_adapter->splice(
+				0 + $depth,
+				1 + ($prev->ancestors - $depth),
+				\@extra
+			);
+		}
+
+		# Not very efficient. We should be able to expose previous and current instead?
+		$self->redraw;
+		return $self
+	}
+	($self->{highlight_node}) = $self->root->daughters unless $self->{highlight_node};
+	return $self->{highlight_node};
+}
+
 =head2 reshape
 
 Workaround to avoid warnings from L<Tickit::Window>. This probably shouldn't
@@ -784,6 +846,10 @@ sub reshape {
 	}
 	$self->SUPER::reshape(@_)
 }
+
+=head1 METHODS - Input handling
+
+These methods are related to input handling (keyboard, mouse).
 
 =head2 on_mouse
 
@@ -939,55 +1005,6 @@ sub key_down_tree {
 	1
 }
 
-=head2 highlight_node
-
-Change the currently highlighted node.
-
-=cut
-
-sub highlight_node {
-	my $self = shift;
-	if(@_) {
-		my $prev = delete $self->{highlight_node};
-		$self->{highlight_node} = shift;
-		$self->invoke_event(
-			highlight_node => $self->{highlight_node}, $prev
-		);
-		$self->{move_cursor} = 1;
-
-		if($prev) {
-			# If we had a previous item, we'll be wanting to update our
-			# position adapter as well to indicate where we are in the
-			# tree. Thankfully Tree::DAG_Node makes this relatively easy:
-			# find common ancestor, splice new subtree over everything
-			# from that ancestor downwards.
-			my $ancestor = $prev->common(
-				$self->{highlight_node}
-			);
-			my $node = $self->{highlight_node};
-			my @extra = $node;
-			while($node != $ancestor) {
-				$node = $node->mother;
-				unshift @extra, $node;
-			}
-
-			# Might be undef, for reasons I can't remember offhand.
-			my $depth = $ancestor->ancestors // 0;
-			$self->position_adapter->splice(
-				0 + $depth,
-				1 + ($prev->ancestors - $depth),
-				\@extra
-			);
-		}
-
-		# Not very efficient. We should be able to expose previous and current instead?
-		$self->redraw;
-		return $self
-	}
-	($self->{highlight_node}) = $self->root->daughters unless $self->{highlight_node};
-	return $self->{highlight_node};
-}
-
 =head2 key_open_node
 
 Open this node.
@@ -1027,11 +1044,24 @@ sub key_activate {
 	1
 }
 
-sub bus { shift->{bus} //= Mixin::Event::Dispatch::Bus->new }
+=head1 METHODS - Legacy
 
-# Legacy support
+=cut
+
+=head2 subscribe_to_event
+
+Subscribes to an event. Newer code would call this method on L</bus> instead.
+
+=cut
 
 sub subscribe_to_event { shift->bus->subscribe_to_event(@_) }
+
+=head2 unsubscribe_from_event
+
+Unsubscribes from an event. Newer code would call this method on L</bus> instead.
+
+=cut
+
 sub unsubscribe_from_event { shift->bus->unsubscribe_from_event(@_) }
 
 1;
