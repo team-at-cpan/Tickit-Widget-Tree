@@ -422,7 +422,7 @@ sub render_to_rb {
 						$highlight_pen
 					);
 				}
-				$win->cursor_at($start_y - $y_offset, (2 + 3 * ($depth - 1)) - $x_offset) if ($highlight_node == $node) && delete $self->{move_cursor};
+				$win->cursor_at($start_y - $y_offset, 2 + (2 + 3 * ($depth - 1)) - $x_offset) if ($highlight_node == $node) && delete $self->{move_cursor};
 				if($has_children) {
 					$rb->char_at(
 						$start_y,
