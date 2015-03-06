@@ -253,7 +253,7 @@ sub new {
 		$add = sub {
 			my ($parent, $item) = @_;
 			if(my $ref = ref $item) {
-				if(Scalar::Utils::blessed($item)) {
+				if(Scalar::Util::blessed($item)) {
 					# If we already have an adapter, apply it now - it'll autopopulate immediately
 					if($item->isa('Adapter::Async::OrderedList')) {
 						$self->adapter_for_node($parent => $item);
