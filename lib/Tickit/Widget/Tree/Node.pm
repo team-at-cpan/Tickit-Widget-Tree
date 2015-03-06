@@ -458,6 +458,7 @@ sub next {
 			}
 			$node = $node->mother;
 		}
+		return undef if $node->is_root;
 		return $node;
 	}
 }
