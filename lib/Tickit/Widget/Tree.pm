@@ -280,6 +280,7 @@ Work out our size, when we have a window to fit in.
 sub window_gained {
 	my $self = shift;
 	$self->calculate_size;
+	$self->window->cursor_visible(0);
 	$self->SUPER::window_gained(@_);
 }
 
