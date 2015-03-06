@@ -461,10 +461,12 @@ sub highlight_node {
 				1 + ($prev->ancestors - $depth),
 				\@extra
 			);
+
+			$self->expose_node($prev);
 		}
 
 		# Not very efficient. We should be able to expose previous and current instead?
-		$self->redraw;
+		$self->expose_node($node);
 		return $self
 	}
 	($self->{highlight_node}) = $self->root->daughters unless $self->{highlight_node};
