@@ -21,7 +21,7 @@ my %WriteMakefileArgs = (
   "MIN_PERL_VERSION" => "5.010001",
   "NAME" => "Tickit::Widget::Tree",
   "PREREQ_PM" => {
-    "Adapter::Async" => "0.011",
+    "Adapter::Async" => "0.012",
     "Log::Any" => 0,
     "Mixin::Event::Dispatch" => "1.006",
     "Tickit" => "0.46",
@@ -38,7 +38,7 @@ my %WriteMakefileArgs = (
     "Test::More" => "0.98",
     "Test::Refcount" => "0.07"
   },
-  "VERSION" => "0.112",
+  "VERSION" => "0.113",
   "test" => {
     "TESTS" => "t/*.t"
   }
@@ -46,7 +46,7 @@ my %WriteMakefileArgs = (
 
 
 my %FallbackPrereqs = (
-  "Adapter::Async" => "0.011",
+  "Adapter::Async" => "0.012",
   "ExtUtils::MakeMaker" => "6.48",
   "File::Spec" => 0,
   "IO::Handle" => 0,
