@@ -775,6 +775,7 @@ sub render_to_rb {
 	my $regular_label_pen = $self->get_style_pen('label');
 	my $highlight_pen = $self->get_style_pen('highlight');
 	my $line_pen = $self->get_style_pen;
+	my $toggle_pen = $self->get_style_pen('toggle');
 
 	my $highlight_node = $self->highlight_node;
 
@@ -793,7 +794,7 @@ sub render_to_rb {
 
 			# Since we may be rendering the label from other methods, let's just start
 			# by erasing everything so we don't have to chase around trying to work out
-			# who drew what where and when.
+			# who drew what where when why and how.
 			$rb->erase_at($line, $rect->left, $rect->cols, $regular_label_pen);
 
 			# If we've run out of nodes, erase the rest of the rendering area and bail out early
@@ -824,6 +825,14 @@ sub render_to_rb {
 				LINE_SINGLE,
 				$line_pen,
 			) if $depth;
+
+			$rb->char_at(
+				$line,
+				2 + 3 * ($depth - 1),
+				$node->is_open ? 0x229F : 0x229E,
+				$toggle_pen
+			);
+			Scalar::Util::weaken($self->{toggle}{join ',', $line, 2 + 3 * ($depth - 1)} = $node);
 
 			return 1;
 		}
