@@ -7,7 +7,7 @@ use parent qw(Tickit::Widget Mixin::Event::Dispatch);
 
 use constant EVENT_DISPATCH_ON_FALLBACK => 0;
 
-our $VERSION = '0.112';
+our $VERSION = '0.113';
 
 =head1 NAME
 
@@ -295,9 +295,7 @@ sub add_item_under_parent {
 	my ($self, $parent, $item) = @_;
 
 	# Adapters are special
-	warn "adding $item";
 	if(Scalar::Util::blessed($item) && $item->isa('Adapter::Async::OrderedList')) {
-		warn "got an $item";
 		$self->adapter_for_node($parent => $item);
 		return $parent;
 	}

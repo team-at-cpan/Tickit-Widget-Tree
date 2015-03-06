@@ -1,6 +1,10 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	No new features.
+
+	Bugs fixed:
+	* Remove some stray warnings
 
 0.112     2015-01-25 18:08:12+00:00 Europe/London
 	Features:
