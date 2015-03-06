@@ -853,7 +853,7 @@ sub iterate_nodes {
 	my ($self, $node, $code) = @_;
 	my $depth = $node->depth;
 	my $line = 0;
-	while(eval { $code->($node, $line++, $depth) } // warn "failed? $@") {
+	while($code->($node, $line++, $depth)) {
 		# Tree::DAG_Node
 		# Iterate into node if we're open, but only if there's any nodes under it
 		if($node->is_open && $node->daughters) {
