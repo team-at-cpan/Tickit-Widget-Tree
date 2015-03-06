@@ -597,12 +597,12 @@ sub bottom_node {
 
 	if(@_) {
 		$self->{bottom_node} = shift;
-		$self->update_visible_nodes_from_top if $self->window;
+		$self->update_visible_nodes_from_bottom if $self->window;
 		return $self;
 	}
 	unless($self->{bottom_node}) {
 		($self->{bottom_node}) = $self->root->daughters;
-		$self->update_visible_nodes_from_top if $self->window;
+		$self->update_visible_nodes_from_bottom if $self->window;
 	}
 	return $self->{bottom_node};
 }
