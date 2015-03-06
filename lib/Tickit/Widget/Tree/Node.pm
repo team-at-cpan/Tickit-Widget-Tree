@@ -462,17 +462,15 @@ Returns true if this node is before the given node in the tree.
 
 sub is_before {
 	my ($self, $node) = @_;
-	my @src = reverse $self->ancestors;
-	my @dst = reverse $node->ancestors;
-	while(@src && @dst && $src[0] == $dst[0]) {
-		shift @src;
-		shift @dst;
+	$log->debugf("Check is_before for %s and %s", $self->to_string, $node->to_string);
+	my @src = split /:/, $self->address;
+	my @dst = split /:/, $node->address;
+	while(1) {
+		my $src = shift @src // return 1;
+		my $dst = shift @dst // return 0;
+		return 0 if $src > $dst;
+		return 1 if $src < $dst;
 	}
-	return 0 unless @src && @dst;
-
-	# We now have first diverging ancestor at start of each array.
-
-	return $src[0]->my_daughter_index < $dst[0]->my_daughter_index;
 }
 
 =head2 is_after
@@ -483,17 +481,15 @@ Returns true if this node is after the given node in the tree.
 
 sub is_after {
 	my ($self, $node) = @_;
-	my @src = reverse $self->ancestors;
-	my @dst = reverse $node->ancestors;
-	while(@src && @dst && $src[0] == $dst[0]) {
-		shift @src;
-		shift @dst;
+	$log->debugf("Check is_after for %s and %s", $self->to_string, $node->to_string);
+	my @src = split /:/, $self->address;
+	my @dst = split /:/, $node->address;
+	while(1) {
+		my $src = shift @src // return 0;
+		my $dst = shift @dst // return 1;
+		return 1 if $src > $dst;
+		return 0 if $src < $dst;
 	}
-	return 0 unless @src && @dst;
-
-	# We now have first diverging ancestor at start of each array.
-
-	return $src[0]->my_daughter_index > $dst[0]->my_daughter_index;
 }
 
 =head2 _intersect
