@@ -36,6 +36,8 @@ sub tree(&;$) {
 	cmp_deeply($render->(10), ['x'], 'single element');
 	$adapter->push([1..10]);
 	cmp_deeply($render->(10), ['x', 1..9], 'overflow by one');
+	$adapter->splice(2, 1, []);
+	cmp_deeply($render->(10), ['x', 1, 3..10], 'remove element');
 }
 
 done_testing;
