@@ -7,7 +7,7 @@ use parent qw(Tickit::Widget Mixin::Event::Dispatch);
 
 use constant EVENT_DISPATCH_ON_FALLBACK => 0;
 
-our $VERSION = '0.113';
+our $VERSION = '0.114';
 
 =head1 NAME
 
@@ -757,6 +757,7 @@ sub key_first_row {
 	my ($node) = $self->root->daughters;
 	$self->highlight_node($node);
 	$self->redraw;
+	1
 }
 
 =head2 key_last_row
@@ -773,6 +774,7 @@ sub key_last_row {
 	}
 	$self->highlight_node($node);
 	$self->redraw;
+	1
 }
 
 =head2 key_previous_row
@@ -799,6 +801,7 @@ sub key_previous_row {
 	($node) = $node->daughters if $node->is_root;
 	$self->highlight_node($node);
 	$self->redraw;
+	1
 }
 
 =head2 key_next_row
@@ -829,10 +832,11 @@ sub key_next_row {
 
 	# if we've gone past the start, we're already at the bottom so we don't
 	# do anything - just bail out here
-	return $self if $node->is_root;
+	return 1 if $node->is_root;
 
 	$self->highlight_node($node);
 	$self->redraw;
+	1
 }
 
 =head2 key_up_tree
@@ -844,9 +848,10 @@ Going "up" the tree means the parent of the current node.
 sub key_up_tree {
 	my $self = shift;
 	my $node = $self->highlight_node;
-	return $self if $node->is_root || $node->mother->is_root;
+	return 1 if $node->is_root || $node->mother->is_root;
 	$self->highlight_node($node->mother);
 	$self->redraw;
+	1
 }
 
 =head2 key_down_tree
@@ -859,11 +864,11 @@ and we're open.
 sub key_down_tree {
 	my $self = shift;
 	my $node = $self->highlight_node;
-	return $self unless $node->daughters;
+	return 1 unless $node->daughters;
 	$node->attributes->{open} = 1 unless $node->attributes->{open};
 	($node) = $node->daughters;
 	$self->highlight_node($node);
-	$self->redraw;
+	1
 }
 
 =head2 highlight_node
@@ -925,6 +930,7 @@ sub key_open_node {
 	my $self = shift;
 	$self->highlight_node->attributes->{open} = 1;
 	$self->redraw;
+	1
 }
 
 =head2 key_close_node
@@ -937,6 +943,7 @@ sub key_close_node {
 	my $self = shift;
 	$self->highlight_node->attributes->{open} = 0;
 	$self->redraw;
+	1
 }
 
 =head2 key_activate
@@ -949,6 +956,7 @@ sub key_activate {
 	my $self = shift;
 	$self->{on_activate}->($self->highlight_node) if $self->{on_activate};
 	$self->invoke_event(activate => $self->highlight_node);
+	1
 }
 
 1;
