@@ -667,7 +667,7 @@ sub render_to_rb {
 			$line_pen,
 		);
 	}
-	$rb->vline_at(-1, $line{$self->{root}}, 1, LINE_SINGLE, $line_pen);
+	# $rb->vline_at(-1, $line{$self->{root}}, 1, LINE_SINGLE, $line_pen) if exists $line{$self->{root}};
 
 	# Render our cached label information
 	for (@labels) {
