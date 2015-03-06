@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+0.112     2015-01-25 18:08:12+00:00 Europe/London
 	Features:
 	* ->add_node_under_parent to allow adding complex data structures - this is an extension
 	of the handling that we already had in place for ->new(data => ...)

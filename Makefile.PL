@@ -22,6 +22,7 @@ my %WriteMakefileArgs = (
   "NAME" => "Tickit::Widget::Tree",
   "PREREQ_PM" => {
     "Adapter::Async" => "0.011",
+    "Log::Any" => 0,
     "Mixin::Event::Dispatch" => "1.006",
     "Tickit" => "0.46",
     "Tickit::Widget" => 0,
@@ -37,7 +38,7 @@ my %WriteMakefileArgs = (
     "Test::More" => "0.98",
     "Test::Refcount" => "0.07"
   },
-  "VERSION" => "0.111",
+  "VERSION" => "0.112",
   "test" => {
     "TESTS" => "t/*.t"
   }
@@ -50,6 +51,7 @@ my %FallbackPrereqs = (
   "File::Spec" => 0,
   "IO::Handle" => 0,
   "IPC::Open3" => 0,
+  "Log::Any" => 0,
   "Mixin::Event::Dispatch" => "1.006",
   "Test::CheckDeps" => "0.010",
   "Test::Fatal" => "0.010",
