@@ -113,7 +113,7 @@ sub adapter_for_node {
 				},
 				splice => sub {
 					my ($ev, $start, $length, $added, $removed) = @_;
-					$self->splice_handler($tree, $start, $length, $added);
+					$n->splice_handler($tree, $start, $length, $added);
 				},
 				move => sub {
 					# warn "move!"
