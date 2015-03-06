@@ -1203,17 +1203,7 @@ Go up a node.
 
 sub key_previous_row {
 	my $self = shift;
-	my $node = $self->highlight_node;
-	# If there are nodes before this one in the tree,
-	# then we want the leaf node going down from ->left_sister
-	if($node->left_sister) {
-		$node = $node->left_sister;
-		while($node->attributes->{open} && $node->daughters) {
-			($node) = reverse $node->daughters;
-		}
-	} else {
-		$node = $node->mother;
-	}
+	my $node = $self->highlight_node->prev;
 
 	# if we've gone past the start, we're at the top
 	($node) = $node->daughters if $node->is_root;
@@ -1230,23 +1220,7 @@ Move down a node.
 
 sub key_next_row {
 	my $self = shift;
-	my $node = $self->highlight_node;
-	# If we're open and there are any nodes under us, that's easy -
-	# just pick the first one and we're done
-	if($node->attributes->{open} && $node->daughters) {
-		($node) = $node->daughters;
-	} else {
-		# We chase up the tree looking for a suitable 'next' entry - either
-		# the next node across from us, or from the parent, etc. We may not
-		# be able to find anything - in that case, we'll end up at the root.
-		while(!$node->is_root) {
-			if($node->right_sister) {
-				$node = $node->right_sister;
-				last;
-			}
-			$node = $node->mother;
-		}
-	}
+	my $node = $self->highlight_node->next;
 
 	# if we've gone past the start, we're already at the bottom so we don't
 	# do anything - just bail out here
