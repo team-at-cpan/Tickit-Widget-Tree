@@ -19,7 +19,7 @@ use List::UtilsBy qw(sort_by);
 
 sub new {
 	my ($class, $args) = @_;
-	my $self = $class->new($args);
+	my $self = $class->SUPER::new($args);
 	Scalar::Util::weaken($self->attributes->{tree});
 	$self
 }
