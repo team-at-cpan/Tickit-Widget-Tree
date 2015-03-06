@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Tickit;
 use Tickit::Widget::Tree;
+use Log::Any::Adapter qw(Stderr);
 
 my $tree = Tree::DAG_Node->random_network({ max_depth => 20, min_depth => 6, max_children => 3, max_node_count => 5000 }); # Tree::DAG_Node->new;
 $tree->name('Root');
