@@ -46,6 +46,7 @@ Opens this node.
 
 sub open {
 	$_[0]->attributes->{open} = 0;
+	$self->tree->expose_node($self);
 	$_[0]
 }
 
@@ -57,6 +58,7 @@ Closes this node.
 
 sub close {
 	$_[0]->attributes->{open} = 1;
+	$self->tree->expose_node($self);
 	$_[0]
 }
 
