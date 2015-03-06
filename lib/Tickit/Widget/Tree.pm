@@ -14,7 +14,7 @@ Tickit::Widget::Tree - tree widget implementation for L<Tickit>
 =head1 SYNOPSIS
 
  use Tickit::Widget::Tree;
- my $tree = Tickit::Widget::Tree->new(root => Tree::DAG_Node->new);
+ my $tree = Tickit::Widget::Tree->new(root => Tickit::Widget::Tree::Node->new);
 
 =head1 DESCRIPTION
 
@@ -33,7 +33,7 @@ is not backward compatible.
 =cut
 
 use Tickit::RenderBuffer qw(LINE_SINGLE CAP_START CAP_END CAP_BOTH);
-use Tree::DAG_Node;
+use Tickit::Widget::Tree::Node;
 use Scalar::Util;
 use List::Util qw(max);
 use List::UtilsBy qw(sort_by);
@@ -147,7 +147,7 @@ Instantiate. Takes the following named parameters:
 
 =over 4
 
-=item * root - the root L<Tree::DAG_Node>
+=item * root - the root L<Tickit::Widget::Tree::Node>
 
 =item * on_activate - coderef to call when a node has been activated (usually
 via 'enter' keypress)
@@ -219,7 +219,7 @@ sub new {
 
 =cut
 
-sub node_class { 'Tree::DAG_Node' }
+sub node_class { 'Tickit::Widget::Tree::Node' }
 
 =head2 bus
 
@@ -227,70 +227,22 @@ sub node_class { 'Tree::DAG_Node' }
 
 sub bus { shift->{bus} //= Mixin::Event::Dispatch::Bus->new }
 
-=head2 cols
+=head2 root
 
-Widget columns.
+Accessor for the root node. If given a parameter, will set the root node accordingly (and
+mark the tree for redraw), returning $self.
 
-=cut
-
-sub cols {
-	my $self = shift;
-	$self->calculate_size unless exists $self->{cols};
-	return $self->{cols};
-}
-
-=head2 lines
-
-Widget lines.
+Otherwise, returns the root node - or undef if we do not have one.
 
 =cut
 
-sub lines {
+sub root {
 	my $self = shift;
-	$self->calculate_size unless exists $self->{lines};
-	return $self->{lines};
-}
-
-=head2 calculate_size
-
-Calculate the minimum size needed to contain the full tree with all nodes expanded.
-
-Used internally.
-
-=cut
-
-sub calculate_size {
-	my $self = shift;
-	my $w = 0;
-	my $h = 0;
-	my $code = sub {
-		my ($code, $node, $depth, $y) = @_;
-
-		my $has_children = $node->daughters ? 1 : 0;
-
-		# Our label - root isn't shown, and we don't want a blank
-		# line at the top either, so we don't update the pointer for root
-		unless($node->is_root) {
-			# We only need to draw this if we're inside the rendering area
-			$w = max $w, 1 + 3 * $depth + textwidth($node->name);
-
-			# ... but we always want to update our current row pointer
-			++$y;
-		}
-
-		# We can stop here if we're empty
-		return $y unless $has_children;
-
-		# Recurse into each child node, updating our height as we go
-		my @child = $node->daughters;
-
-		$y = $code->($code, $_, $depth + 1, $y) for @child;
-		return $y;
-	};
-	$h = $code->($code, $self->root, 0, 0);
-	$self->{lines} = $h + 1;
-	$self->{cols} = $w;
-	return $self;
+	if(@_) {
+		$self->{root} = shift;
+		return $self;
+	}
+	return $self->{root}
 }
 
 =head2 add_item_under_parent
@@ -301,7 +253,7 @@ Takes the following parameters:
 
 =over 4
 
-=item * $parent - which L<Tree::DAG_Node> to add this item to
+=item * $parent - which L<Tickit::Widget::Tree::Node> to add this item to
 
 =item * $item - a thing to add
 
@@ -441,22 +393,283 @@ sub nodes_from_data {
 	return $self->new_named_node($item);
 }
 
-=head2 root
+=head2 adapter_for_node
 
-Accessor for the root node. If given a parameter, will set the root node accordingly (and
-mark the tree for redraw), returning $self.
+Returns or sets an L<Adapter::Async::OrderedList> for the given node.
 
-Otherwise, returns the root node - or undef if we do not have one.
+This is the primary mechanism for making a node "live" - once it has been
+attached to an adapter, the child nodes will update according to events on
+the adapter.
+
+ $node = $tree->node;
+ $node->adapter_for_node->push([1,2,3]);
 
 =cut
 
-sub root {
+sub adapter_for_node {
+	my $self = shift;
+	my $node = shift;
+	return $node->attributes->{adapter} if $node->attributes->{adapter} && !@_;
+
+	# We previously had an adapter, and as such may have stashed some event handlers,
+	# so detach gracefully before proceeding any further.
+	$node->attributes->{adapter_events} ||= [];
+	if($node->attributes->{adapter}) {
+		my ($bus, @ev) = splice @{$node->attributes->{adapter_events}}, 0;
+		$bus->unsubscribe_from_event(@ev) if $bus && @ev;
+	}
+
+	$node->attributes->{adapter} = shift if @_;
+	$node->attributes->{adapter} //= do {
+		my $adapter = Adapter::Async::OrderedList::Array->new(
+			# TODO should populate from existing child nodes
+			data => []
+		);
+	};
+	$node->attributes->{transformation} = shift if @_;
+
+	# Okay, now we have an adapter, we need to subscribe to all the events, applying
+	# each change to the tree and requesting a refresh in the process.
+	if($node->attributes->{adapter}->isa('Adapter::Async::OrderedList')) {
+		Scalar::Util::weaken(my $n = $node);
+		Scalar::Util::weaken(my $widget = $self);
+		$node->attributes->{adapter}->bus->subscribe_to_event(
+			my @ev = (
+				clear => sub {
+					# warn "clear!"
+					$n->set_daughters();
+					# FIXME slow
+					$widget->redraw;
+				},
+				splice => sub {
+					my ($ev, $start, $length, $added, $removed) = @_;
+					eval {
+						my @nodes = $n->daughters;
+						# add_item_under_parent
+						# $log->debugf("Splice in [%s]", $added);
+						my @add = map $self->nodes_from_data($_), @$added;
+						# $log->debugf("* [%s]", $_) for @add;
+						splice @nodes, $start, $length, @add;
+						$n->set_daughters(@nodes);
+						# FIXME slow
+						$widget->redraw; 1
+					} or do {
+						$log->errorf("Exception on splice - $@");
+					}
+				},
+				move => sub {
+					# warn "move!"
+					# FIXME uh...
+				},
+			)
+		);
+		push @{$node->attributes->{adapter_events}}, $node->attributes->{adapter}->bus, @ev;
+		{ # Initial population
+			my @nodes = $node->daughters;
+			$node->attributes->{adapter}->all(
+				on_item => sub {
+					my $item = shift;
+					# $log->debugf("Adding [%s] for initial population", $item);
+					my @expanded = $self->nodes_from_data($node);
+					# $log->debugf("* [%s]", $_) for @expanded;
+					push @nodes, @expanded
+				},
+			)->on_done(sub {
+				$node->set_daughters(@nodes);
+			});
+		}
+	} elsif($node->attributes->{adapter}->isa('Adapter::Async::UnorderedMap')) {
+		Scalar::Util::weaken(my $n = $node);
+		Scalar::Util::weaken(my $widget = $self);
+		my $add = sub {
+			my ($k, $v) = @_;
+			eval {
+				if(my $trans = $n->attributes->{transformation}) {
+					my $old_key = $k;
+					$k = $trans->key($k, $v, 0, $n->attributes->{adapter}, $self);
+					$v = $trans->item($k, $v, 0, $n->attributes->{adapter}, $self);
+				}
+				my @nodes = $n->daughters;
+				my $new = $self->nodes_from_data($k);
+				$new->set_daughters($self->nodes_from_data($v));
+				push @nodes, $new;
+				$n->set_daughters(sort_by { $_->name } $new, @nodes);
+				$widget->redraw; 1
+			} or do {
+				$log->errorf("Exception on add - $@");
+			}
+		};
+		$node->attributes->{adapter}->bus->subscribe_to_event(
+			my @ev = (
+				clear => sub {
+					$n->set_daughters();
+					# FIXME slow
+					$widget->redraw;
+				},
+				set_key => sub {
+					my ($ev, $k, $v) = @_;
+					$add->($k => $v);
+				},
+				delete_key => sub {
+					my ($ev, $k, $v) = @_;
+					eval {
+						my @nodes = $n->daughters;
+						List::UtilsBy::extract_by { $_ == $v } @nodes;
+						$n->set_daughters(@nodes);
+						$widget->redraw; 1
+					} or do {
+						$log->errorf("Exception on splice - $@");
+					}
+				},
+			)
+		);
+		retain_future($node->attributes->{adapter}->each($add));
+	}
+	$node->attributes->{adapter}
+}
+
+=head2 position_adapter
+
+Returns the "position" adapter. This is an L<Adapter::Async::OrderedList::Array>
+indicating where we are in the tree - it's a list of all the nodes leading to
+the currently-highlighted one.
+
+Note that this will return L<Tickit::Widget::Tree::Node> items. You'd probably
+want the L<Tree::DAG_Node/name> method to get something printable.
+
+Example usage:
+
+ my $tree = Tickit::Widget::Tree->new(...);
+ my $where_am_i = Tickit::Widget::Breadcrumb->new(
+  item_transformations => sub {
+   shift->name
+  }
+ );
+ $where_am_i->adapter($tree->position_adapter);
+
+=cut
+
+sub position_adapter {
+	shift->{position_adapter} ||= do {
+		Adapter::Async::OrderedList::Array->new(
+			data => []
+		)
+	}
+}
+
+=head2 highlight_node
+
+Change the currently highlighted node.
+
+=cut
+
+sub highlight_node {
 	my $self = shift;
 	if(@_) {
-		$self->{root} = shift;
-		return $self;
+		my $prev = delete $self->{highlight_node};
+		$self->{highlight_node} = shift;
+		$self->invoke_event(
+			highlight_node => $self->{highlight_node}, $prev
+		);
+		$self->{move_cursor} = 1;
+
+		if($prev) {
+			# If we had a previous item, we'll be wanting to update our
+			# position adapter as well to indicate where we are in the
+			# tree. Thankfully Tree::DAG_Node makes this relatively easy:
+			# find common ancestor, splice new subtree over everything
+			# from that ancestor downwards.
+			my $ancestor = $prev->common(
+				$self->{highlight_node}
+			);
+			my $node = $self->{highlight_node};
+			my @extra = $node;
+			while($node != $ancestor) {
+				$node = $node->mother;
+				unshift @extra, $node;
+			}
+
+			# Might be undef, for reasons I can't remember offhand.
+			my $depth = $ancestor->ancestors // 0;
+			$self->position_adapter->splice(
+				0 + $depth,
+				1 + ($prev->ancestors - $depth),
+				\@extra
+			);
+		}
+
+		# Not very efficient. We should be able to expose previous and current instead?
+		$self->redraw;
+		return $self
 	}
-	return $self->{root}
+	($self->{highlight_node}) = $self->root->daughters unless $self->{highlight_node};
+	return $self->{highlight_node};
+}
+
+=head2 cols
+
+Widget columns.
+
+=cut
+
+sub cols {
+	my $self = shift;
+	$self->calculate_size unless exists $self->{cols};
+	return $self->{cols};
+}
+
+=head2 lines
+
+Widget lines.
+
+=cut
+
+sub lines {
+	my $self = shift;
+	$self->calculate_size unless exists $self->{lines};
+	return $self->{lines};
+}
+
+=head2 calculate_size
+
+Calculate the minimum size needed to contain the full tree with all nodes expanded.
+
+Used internally.
+
+=cut
+
+sub calculate_size {
+	my $self = shift;
+	my $w = 0;
+	my $h = 0;
+	my $code = sub {
+		my ($code, $node, $depth, $y) = @_;
+
+		my $has_children = $node->daughters ? 1 : 0;
+
+		# Our label - root isn't shown, and we don't want a blank
+		# line at the top either, so we don't update the pointer for root
+		unless($node->is_root) {
+			# We only need to draw this if we're inside the rendering area
+			$w = max $w, 1 + 3 * $depth + textwidth($node->name);
+
+			# ... but we always want to update our current row pointer
+			++$y;
+		}
+
+		# We can stop here if we're empty
+		return $y unless $has_children;
+
+		# Recurse into each child node, updating our height as we go
+		my @child = $node->daughters;
+
+		$y = $code->($code, $_, $depth + 1, $y) for @child;
+		return $y;
+	};
+	$h = $code->($code, $self->root, 0, 0);
+	$self->{lines} = $h + 1;
+	$self->{cols} = $w;
+	return $self;
 }
 
 =head2 window_gained
@@ -627,219 +840,6 @@ sub render_to_rb {
 	};
 	$code->($code, $self->root, 0, 0);
 	$rb->goto(0,0);
-}
-
-=head2 adapter_for_node
-
-Returns or sets an L<Adapter::Async::OrderedList> for the given node.
-
-This is the primary mechanism for making a node "live" - once it has been
-attached to an adapter, the child nodes will update according to events on
-the adapter.
-
- $node = $tree->node;
- $node->adapter_for_node->push([1,2,3]);
-
-=cut
-
-sub adapter_for_node {
-	my $self = shift;
-	my $node = shift;
-	return $node->attributes->{adapter} if $node->attributes->{adapter} && !@_;
-
-	# We previously had an adapter, and as such may have stashed some event handlers,
-	# so detach gracefully before proceeding any further.
-	$node->attributes->{adapter_events} ||= [];
-	if($node->attributes->{adapter}) {
-		my ($bus, @ev) = splice @{$node->attributes->{adapter_events}}, 0;
-		$bus->unsubscribe_from_event(@ev) if $bus && @ev;
-	}
-
-	$node->attributes->{adapter} = shift if @_;
-	$node->attributes->{adapter} //= do {
-		my $adapter = Adapter::Async::OrderedList::Array->new(
-			# TODO should populate from existing child nodes
-			data => []
-		);
-	};
-	$node->attributes->{transformation} = shift if @_;
-
-	# Okay, now we have an adapter, we need to subscribe to all the events, applying
-	# each change to the tree and requesting a refresh in the process.
-	if($node->attributes->{adapter}->isa('Adapter::Async::OrderedList')) {
-		Scalar::Util::weaken(my $n = $node);
-		Scalar::Util::weaken(my $widget = $self);
-		$node->attributes->{adapter}->bus->subscribe_to_event(
-			my @ev = (
-				clear => sub {
-					# warn "clear!"
-					$n->set_daughters();
-					# FIXME slow
-					$widget->redraw;
-				},
-				splice => sub {
-					my ($ev, $start, $length, $added, $removed) = @_;
-					eval {
-						my @nodes = $n->daughters;
-						# add_item_under_parent
-						# $log->debugf("Splice in [%s]", $added);
-						my @add = map $self->nodes_from_data($_), @$added;
-						# $log->debugf("* [%s]", $_) for @add;
-						splice @nodes, $start, $length, @add;
-						$n->set_daughters(@nodes);
-						# FIXME slow
-						$widget->redraw; 1
-					} or do {
-						$log->errorf("Exception on splice - $@");
-					}
-				},
-				move => sub {
-					# warn "move!"
-					# FIXME uh...
-				},
-			)
-		);
-		push @{$node->attributes->{adapter_events}}, $node->attributes->{adapter}->bus, @ev;
-		{ # Initial population
-			my @nodes = $node->daughters;
-			$node->attributes->{adapter}->all(
-				on_item => sub {
-					my $item = shift;
-					# $log->debugf("Adding [%s] for initial population", $item);
-					my @expanded = $self->nodes_from_data($node);
-					# $log->debugf("* [%s]", $_) for @expanded;
-					push @nodes, @expanded
-				},
-			)->on_done(sub {
-				$node->set_daughters(@nodes);
-			});
-		}
-	} elsif($node->attributes->{adapter}->isa('Adapter::Async::UnorderedMap')) {
-		Scalar::Util::weaken(my $n = $node);
-		Scalar::Util::weaken(my $widget = $self);
-		my $add = sub {
-			my ($k, $v) = @_;
-			eval {
-				if(my $trans = $n->attributes->{transformation}) {
-					my $old_key = $k;
-					$k = $trans->key($k, $v, 0, $n->attributes->{adapter}, $self);
-					$v = $trans->item($k, $v, 0, $n->attributes->{adapter}, $self);
-				}
-				my @nodes = $n->daughters;
-				my $new = $self->nodes_from_data($k);
-				$new->set_daughters($self->nodes_from_data($v));
-				push @nodes, $new;
-				$n->set_daughters(sort_by { $_->name } $new, @nodes);
-				$widget->redraw; 1
-			} or do {
-				$log->errorf("Exception on add - $@");
-			}
-		};
-		$node->attributes->{adapter}->bus->subscribe_to_event(
-			my @ev = (
-				clear => sub {
-					$n->set_daughters();
-					# FIXME slow
-					$widget->redraw;
-				},
-				set_key => sub {
-					my ($ev, $k, $v) = @_;
-					$add->($k => $v);
-				},
-				delete_key => sub {
-					my ($ev, $k, $v) = @_;
-					eval {
-						my @nodes = $n->daughters;
-						List::UtilsBy::extract_by { $_ == $v } @nodes;
-						$n->set_daughters(@nodes);
-						$widget->redraw; 1
-					} or do {
-						$log->errorf("Exception on splice - $@");
-					}
-				},
-			)
-		);
-		retain_future($node->attributes->{adapter}->each($add));
-	}
-	$node->attributes->{adapter}
-}
-
-=head2 position_adapter
-
-Returns the "position" adapter. This is an L<Adapter::Async::OrderedList::Array>
-indicating where we are in the tree - it's a list of all the nodes leading to
-the currently-highlighted one.
-
-Note that this will return L<Tree::DAG_Node> items. You'd probably want the L<Tree::DAG_Node/name>
-method to get something printable.
-
-Example usage:
-
- my $tree = Tickit::Widget::Tree->new(...);
- my $where_am_i = Tickit::Widget::Breadcrumb->new(
-  item_transformations => sub {
-   shift->name
-  }
- );
- $where_am_i->adapter($tree->position_adapter);
-
-=cut
-
-sub position_adapter {
-	shift->{position_adapter} ||= do {
-		Adapter::Async::OrderedList::Array->new(
-			data => []
-		)
-	}
-}
-
-=head2 highlight_node
-
-Change the currently highlighted node.
-
-=cut
-
-sub highlight_node {
-	my $self = shift;
-	if(@_) {
-		my $prev = delete $self->{highlight_node};
-		$self->{highlight_node} = shift;
-		$self->invoke_event(
-			highlight_node => $self->{highlight_node}, $prev
-		);
-		$self->{move_cursor} = 1;
-
-		if($prev) {
-			# If we had a previous item, we'll be wanting to update our
-			# position adapter as well to indicate where we are in the
-			# tree. Thankfully Tree::DAG_Node makes this relatively easy:
-			# find common ancestor, splice new subtree over everything
-			# from that ancestor downwards.
-			my $ancestor = $prev->common(
-				$self->{highlight_node}
-			);
-			my $node = $self->{highlight_node};
-			my @extra = $node;
-			while($node != $ancestor) {
-				$node = $node->mother;
-				unshift @extra, $node;
-			}
-
-			# Might be undef, for reasons I can't remember offhand.
-			my $depth = $ancestor->ancestors // 0;
-			$self->position_adapter->splice(
-				0 + $depth,
-				1 + ($prev->ancestors - $depth),
-				\@extra
-			);
-		}
-
-		# Not very efficient. We should be able to expose previous and current instead?
-		$self->redraw;
-		return $self
-	}
-	($self->{highlight_node}) = $self->root->daughters unless $self->{highlight_node};
-	return $self->{highlight_node};
 }
 
 =head2 reshape
