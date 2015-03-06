@@ -363,7 +363,7 @@ sub add_item_under_parent {
 			$parent->adapter_for_node($self => $item);
 			return $parent;
 		} elsif($item->isa('Tickit::Widget::Tree::AdapterTransformation')) {
-			$log->debugf("We have a transformation %s", $item);
+			# $log->debugf("We have a transformation %s", $item);
 			$parent->adapter_for_node($self => $item->adapter, $item);
 			return $parent;
 		}
