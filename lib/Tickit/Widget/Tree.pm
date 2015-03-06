@@ -34,10 +34,16 @@ is not backward compatible.
 
 A basic tree would display a hierarchy of strings.
 
+ [ first => [ qw(one two three four five) ], second => [ qw(red orange yellow blue) ] ]
+
 If you want more interesting rendering, L<String::Tagged> can be used to apply attributes,
 such as colours or bold/italic.
 
+ [ map String::Tagged->new("$_", fg => $_), qw(red orange yellow green blue) ]
+
 More complicated layouts can be achieved with nested widgets.
+
+ [ { name => 'progress', widget => Tickit::Widget::Progressbar::Horizontal->new } ]
 
 =head2 Data sources
 
@@ -95,10 +101,41 @@ options include 'thick' or 'double'
 =item * expand_style - 'boxed' is the only option for now, to select
 a Unicode +/- boxed icon
 
-=item * highlight_(fg|bg|b|rv) - highlight styling
-
 =item * highlight_full_row - if true, will apply highlighting to the
 entire width of the widget, rather than just the text
+
+=back
+
+In addition, these styles define the attributes applied when rendering:
+
+=over 4
+
+=item * highlight - highlight styling
+
+=item * selected - styling for items that have been marked as selected
+
+=item * label - normal (not selected/highlighted) label styling
+
+=item * toggle - normal (not selected/highlighted) open/close icon styling
+
+=item * line - tree line characters
+
+=back
+
+Suffix list - the above base names can have any of the standard L<Tickit> attribute
+names applied, e.g. C<highlight_fg>:
+
+=over 4
+
+=item * fg - foreground colour
+
+=item * bg - foreground colour
+
+=item * b - bold
+
+=item * i - italic
+
+=item * rv - reverse video
 
 =back
 
@@ -244,11 +281,16 @@ sub new {
 
 =head2 node_class
 
+Name of the class we'll use for instantiating new nodes. Currently
+hardcoded to L<Tickit::Widget::Tree::Node>.
+
 =cut
 
 sub node_class { 'Tickit::Widget::Tree::Node' }
 
 =head2 bus
+
+Event bus. An instance of L<Mixin::Event::Dispatch::Bus>.
 
 =cut
 
