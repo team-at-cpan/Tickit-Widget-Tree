@@ -892,11 +892,11 @@ sub render_to_rb {
 	my @labels;
 	my %vert;
 	my %line;
-	my $line = 0;
-	$self->iterate_nodes(
+	my $line = $self->iterate_nodes(
 		$self->top_node,
 		sub {
 			my ($node, $line, $depth) = @_;
+			$log->tracef("Looking at %s for %d depth %d", $node->to_string, $line, $depth);
 			$line{$node} = $line unless $node->is_root;
 			return 1 unless $line >= $rect->top;
 			return 0 if $line > $rect->bottom;
@@ -945,6 +945,14 @@ sub render_to_rb {
 
 			return 1;
 		}
+	);
+	$rb->eraserect(
+		Tickit::Rect->new(
+			top    => $line,
+			bottom => $rect->bottom,
+			left   => $rect->left,
+			right  => $rect->right,
+		)
 	);
 
 	for my $node (values %vert) {
