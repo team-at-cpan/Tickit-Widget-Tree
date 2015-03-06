@@ -269,7 +269,13 @@ sub new {
 	my $data = delete $args{data};
 	my $activate = delete $args{on_activate};
 	my $self = $class->SUPER::new(%args);
-	$root ||= $class->node_class->new({name => 'Root', tree => $self });
+	$root ||= $class->node_class->new({
+		name => 'Root',
+		attributes => {
+			is_open => 1,
+			tree => $self
+		}
+	});
 	$self->add_item_under_parent($root, $data) if defined $data;
 
 	$self->{root} = $root;
@@ -373,8 +379,9 @@ sub new_named_node {
 	$self->node_class->new({
 		name => "$name",
 		attributes => {
-			open => 1
-		}
+			open => 1,
+			tree => $self,
+		},
 	})
 }
 
