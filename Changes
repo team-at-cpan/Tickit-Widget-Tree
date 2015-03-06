@@ -1,6 +1,10 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	Features:
+	* Rendering and tree population now attempts to avoid unnecessary work. This does not affect
+	static tree layouts, but anything using adapters will now limit updates to avoid changing
+	offscreen areas of the tree.
 
 0.114     2015-02-06 19:37:36+00:00 Europe/London
 	No new features.
