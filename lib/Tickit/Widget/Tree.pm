@@ -64,7 +64,7 @@ may help as well.
 
 =cut
 
-use Tickit::RenderBuffer qw(LINE_SINGLE CAP_START CAP_END CAP_BOTH);
+use Tickit::RenderBuffer qw(LINE_SINGLE LINE_DOUBLE CAP_START CAP_END CAP_BOTH);
 use Tickit::Widget::Tree::Node;
 use Scalar::Util;
 use List::Util qw(max);
@@ -676,12 +676,13 @@ sub render_vertical_scrollbar {
 	$rect = $rect->intersect(
 		Tickit::Rect->new(
 			top    => $rect->top,
-			left   => $rect->right,
-			right  => $rect->right
 			bottom => $rect->bottom,
+			left   => $rect->right,
+			right  => $rect->right,
 		)
 	) or return $self;
 
+	my $cols = 1;
 	my $h = $win->lines;
 
 	# Need to clear any line content first, since we may be overwriting part of
