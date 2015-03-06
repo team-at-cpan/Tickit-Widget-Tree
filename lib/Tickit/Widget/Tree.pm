@@ -68,7 +68,6 @@ use Tickit::RenderBuffer qw(LINE_SINGLE LINE_DOUBLE CAP_START CAP_END CAP_BOTH);
 use Tickit::Widget::Tree::Node;
 use Scalar::Util;
 use List::Util qw(max);
-use List::UtilsBy qw(sort_by);
 use Tickit::Utils qw(textwidth);
 use Tickit::Style;
 
@@ -266,11 +265,11 @@ a simple example of a manually-driven adapter.
 sub new {
 	my $class = shift;
 	my %args = @_;
-	my $root = delete($args{root}) || $class->node_class->new({name => 'Root'});
+	my $root = delete($args{root});
 	my $data = delete $args{data};
 	my $activate = delete $args{on_activate};
 	my $self = $class->SUPER::new(%args);
-
+	$root ||= $class->node_class->new({name => 'Root', tree => $self });
 	$self->add_item_under_parent($root, $data) if defined $data;
 
 	$self->{root} = $root;
@@ -772,7 +771,7 @@ sub render_to_rb {
 
 	my $highlight_node = $self->highlight_node;
 
-	$log->debugf("Rendering all lines from %s", $rect);
+	$log->debugf("Rendering all lines from %s", "$rect");
 	my @labels;
 	my %vert;
 	my %line;
