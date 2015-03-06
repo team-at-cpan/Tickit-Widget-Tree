@@ -5,6 +5,11 @@ use warnings;
 
 use parent qw(Tree::DAG_Node);
 
+#use overload
+#	'""' => 'to_string',
+#	bool => sub { 1 },
+#	fallback => 1;
+
 =head1 NAME
 
 Tickit::Widget::Tree::Node - subclass of L<Tree::DAG_Node> for L<Tickit::Widget::Tree>
@@ -506,6 +511,11 @@ sub _intersect {
 	}
 	return undef if $start > $end;
 	[ $start, $end ]
+}
+
+sub to_string {
+	my ($self) = @_;
+	"[" . $self->name . "@" . $self->address . "]";
 }
 
 1;

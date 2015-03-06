@@ -862,7 +862,6 @@ sub scroll_dimension {
 	$win->lines;
 }
 
-
 sub render_to_rb {
 	my $self = shift;
 	my ($rb, $rect) = @_;
