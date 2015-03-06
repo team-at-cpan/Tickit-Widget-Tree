@@ -432,9 +432,9 @@ sub highlight_node {
 	my $self = shift;
 	if(@_) {
 		my $prev = delete $self->{highlight_node};
-		$self->{highlight_node} = shift;
-		$self->invoke_event(
-			highlight_node => $self->{highlight_node}, $prev
+		my $node = $self->{highlight_node} = shift;
+		$self->bus->invoke_event(
+			highlight_node => $node, $prev
 		);
 		$self->{move_cursor} = 1;
 
