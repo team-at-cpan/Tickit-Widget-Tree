@@ -199,7 +199,7 @@ Example usage:
  );
 
 You can get "live" nodes by attaching an L<Adapter::Async::OrderedList> instance, see
-L</Types of data>:
+L</Data sources>:
 
  Tickit:Widget::Tree->new(
   data => [
