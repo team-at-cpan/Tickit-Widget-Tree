@@ -764,8 +764,6 @@ sub expose_node {
 	$self->window->expose
 }
 
-sub top_node { my ($node) = shift->{root}->daughters; $node }
-
 =head2 render_scrollbar
 
 Render the scrollbar.

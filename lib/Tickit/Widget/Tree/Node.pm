@@ -151,7 +151,7 @@ sub prepare_adapter_map {
 	my $tree = $self->tree;
 	Scalar::Util::weaken(my $n = $self);
 	Scalar::Util::weaken(my $widget = $tree);
-	my $lines = $tree->window ? $tree->window->lines : 10;
+	my $lines = $self->lines;
 	my $add = sub {
 		my ($k, $v) = @_;
 		eval {
@@ -222,7 +222,7 @@ sub prepare_adapter_map {
 sub prepare_adapter_list {
 	my ($self, $adapter) = @_;
 	my $tree = $self->tree;
-	my $lines = $tree->window ? $tree->window->lines : 10;
+	my $lines = $self->lines;
 	Scalar::Util::weaken(my $n = $self);
 	Scalar::Util::weaken(my $widget = $tree);
 	$adapter->bus->subscribe_to_event(
@@ -256,7 +256,7 @@ Manages updates caused by splice events.
 
 sub splice_handler {
 	my ($self, $tree, $start, $length, $items) = @_;
-	my $lines = $tree->window->lines;
+	my $lines = $self->lines;
 	my $delta = max $length, scalar(@$items);
 	return unless my $int = _intersect(
 		$self->start_offset,
@@ -385,8 +385,6 @@ is visible then this will be zero.
 
 =cut
 
-sub start_offset { 0 }
-
 =head2 depth
 
 Tree depth (= number of ancestors) for this node.
@@ -402,6 +400,96 @@ Returns the L<Tickit::Widget::Tree> instance.
 =cut
 
 sub tree { shift->attributes->{tree} }
+
+sub lines {
+	my $self = shift;
+	return $self->{lines} //= ($self->tree->window ? $self->tree->window->lines : 100) unless @_;
+	$self->{lines} = shift;
+	$self
+}
+
+sub start_offset {
+	my $self = shift;
+	return $self->{start_offset} //= 0;
+	$self->{start_offset} = shift;
+	$self
+}
+
+sub prev {
+	my ($self) = @_;
+
+	return $self->mother unless $self->left_sister;
+
+	my $node = $self->left_sister;
+	while($node->is_open && $node->daughters) {
+		($node) = reverse $node->daughters;
+	}
+	return $node
+}
+
+sub next {
+	my ($self) = @_;
+
+	if($self->is_open && $self->daughters) {
+		my ($node) = $self->daughters;
+		return $node;
+	} else {
+		# We chase up the tree looking for a suitable 'next' entry - either
+		# the next node across from us, or from the parent, etc. We may not
+		# be able to find anything - in that case, we'll end up at the root.
+		my $node = $self;
+		while(!$node->is_root) {
+			if($node->right_sister) {
+				$node = $node->right_sister;
+				last;
+			}
+			$node = $node->mother;
+		}
+		return $node;
+	}
+}
+
+=head2 is_before
+
+Returns true if this node is before the given node in the tree.
+
+=cut
+
+sub is_before {
+	my ($self, $node) = @_;
+	my @src = reverse $self->ancestors;
+	my @dst = reverse $node->ancestors;
+	while(@src && @dst && $src[0] == $dst[0]) {
+		shift @src;
+		shift @dst;
+	}
+	return 0 unless @src && @dst;
+
+	# We now have first diverging ancestor at start of each array.
+
+	return $src[0]->my_daughter_index < $dst[0]->my_daughter_index;
+}
+
+=head2 is_after
+
+Returns true if this node is after the given node in the tree.
+
+=cut
+
+sub is_after {
+	my ($self, $node) = @_;
+	my @src = reverse $self->ancestors;
+	my @dst = reverse $node->ancestors;
+	while(@src && @dst && $src[0] == $dst[0]) {
+		shift @src;
+		shift @dst;
+	}
+	return 0 unless @src && @dst;
+
+	# We now have first diverging ancestor at start of each array.
+
+	return $src[0]->my_daughter_index > $dst[0]->my_daughter_index;
+}
 
 =head2 _intersect
 
