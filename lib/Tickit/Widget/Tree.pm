@@ -7,7 +7,7 @@ use parent qw(Tickit::Widget Mixin::Event::Dispatch);
 
 use constant EVENT_DISPATCH_ON_FALLBACK => 0;
 
-our $VERSION = '0.110';
+our $VERSION = '0.111';
 
 =head1 NAME
 
@@ -212,18 +212,52 @@ Example usage:
   ];
  );
 
+You can get "live" nodes by attaching an L<Adapter::Async::OrderedList> instance:
+
+ Tickit:Widget::Tree->new(
+  data => [
+    live => my $adapter = Adapter::Async::OrderedList::Array->new(data => [ ]),
+ 	static => [
+		qw(some static nodes here that will not change)
+	],
+  ];
+ );
+ ( # and this is where the magic happens...
+  Future::Utils::repeat {
+   my $item = shift;
+   $loop->delay_future(
+    after => 0.5
+   )->then(sub {
+    $adapter->push([ $item ]) 
+   })
+  } foreach => [qw(live changes work like this)]
+ )->get;
+
+Normally the adapter would come from somewhere else - database cursor, L<Tangence> property,
+etc. - rather than being instantiated in-place like this. See C< examples/adapter.pl > for
+a simple example of a manually-driven adapter.
+
 =cut
 
 sub new {
 	my $class = shift;
 	my %args = @_;
 	my $root = delete($args{root}) || Tree::DAG_Node->new({name => 'Root'});
-	if(my $data = delete $args{data}) {
+	my $data = delete $args{data};
+	my $activate = delete $args{on_activate};
+	my $self = $class->SUPER::new(%args);
+
+	if($data) {
 		my $add;
 		$add = sub {
 			my ($parent, $item) = @_;
 			if(my $ref = ref $item) {
-				if($ref eq 'ARRAY') {
+				if(blessed $item) {
+					# If we already have an adapter, apply it now - it'll autopopulate immediately
+					if($item->isa('Adapter::Async::OrderedList')) {
+						$self->adapter_for_node($parent => $item);
+					}
+				} elsif($ref eq 'ARRAY') {
 					my $prev = $parent;
 					for (@$item) {
 						if(ref) {
@@ -244,9 +278,7 @@ sub new {
 		};
 		$add->($root, $data);
 	}
-	my $activate = delete $args{on_activate};
-	# this should really be in ::Tree
-	my $self = $class->SUPER::new(%args);
+
 	$self->{root} = $root;
 	$self->{on_activate} = $activate;
 	$self->take_focus;

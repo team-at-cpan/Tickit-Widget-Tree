@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+	Features:
+	* Support Adapter::Async::OrderedList instances in initial data structure
 
 0.110     2015-01-25 15:05:27+00:00 Europe/London
 	Features:
