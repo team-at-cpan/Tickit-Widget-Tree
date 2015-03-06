@@ -267,7 +267,7 @@ sub new {
 	$self
 }
 
-sub { 'Tree::DAG_Node' }
+sub node_class { 'Tree::DAG_Node' }
 
 =head2 add_item_under_parent
 
