@@ -2,7 +2,7 @@ requires 'parent', 0;
 requires 'Adapter::Async', '>= 0.012';
 requires 'Tree::DAG_Node', '>= 1.22';
 requires 'Mixin::Event::Dispatch', '>= 1.006';
-requires 'Tickit', '>= 0.46';
+requires 'Tickit', '>= 0.48';
 requires 'Tickit::Widget', 0;
 requires 'Log::Any', 0;
 requires 'List::UtilsBy', 0;
