@@ -15,6 +15,14 @@ use Log::Any qw($log);
 use List::Util qw(min max);
 use Variable::Disposition qw(retain_future);
 use Future::Utils qw(repeat);
+use List::UtilsBy qw(sort_by);
+
+sub new {
+	my ($class, $args) = @_;
+	my $self = $class->new($args);
+	Scalar::Util::weaken($self->attributes->{tree});
+	$self
+}
 
 =head2 recurse:method
 
