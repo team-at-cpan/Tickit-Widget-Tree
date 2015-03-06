@@ -607,11 +607,15 @@ sub render_to_rb {
 	my $highlight_node = $self->highlight_node;
 
 	$log->debugf("Rendering all lines from %s", $rect);
+	my @labels;
+	my %vert;
+	my %line;
 	my $line = 0;
 	$self->iterate_nodes(
 		$self->top_node,
 		sub {
 			my ($node, $line, $depth) = @_;
+			$line{$node} = $line unless $node->is_root;
 			return 1 unless $line >= $rect->top;
 			return 0 if $line > $rect->bottom;
 
@@ -633,16 +637,13 @@ sub render_to_rb {
 				);
 				return 0
 			}
+			$vert{$node->mother} = $node->mother;#  unless $node->mother->is_root;
 
-			# Render this node's label.
-			$rb->text_at(
+			push @labels, [
 				$line,
 				1 + 3 * $depth,
-				$node->name,
-				($highlight_node == $node)
-				? $highlight_pen
-				: $regular_label_pen
-			);
+				$node
+			];
 
 			$rb->hline_at(
 				$line,
@@ -655,6 +656,31 @@ sub render_to_rb {
 			return 1;
 		}
 	);
+
+	for my $node (values %vert) {
+		my $last = ($node->daughters)[-1];
+		$rb->vline_at(
+			$line{$node} // ($rect->top - 1),
+			$line{$last} // $rect->bottom,
+			1 + 3 * ($last->depth - 1),
+			LINE_SINGLE,
+			$line_pen,
+		);
+	}
+	$rb->vline_at(-1, $line{$self->{root}}, 1, LINE_SINGLE, $line_pen);
+
+	# Render our cached label information
+	for (@labels) {
+		my ($line, $col, $node) = @$_;
+		$rb->text_at(
+			$line,
+			$col,
+			$node->name,
+			($highlight_node == $node)
+			? $highlight_pen
+			: $regular_label_pen
+		);
+	}
 }
 
 sub iterate_nodes {
