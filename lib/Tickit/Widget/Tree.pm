@@ -7,7 +7,7 @@ use parent qw(Tickit::Widget Mixin::Event::Dispatch);
 
 use constant EVENT_DISPATCH_ON_FALLBACK => 0;
 
-our $VERSION = '0.114';
+our $VERSION = '0.115';
 
 =head1 NAME
 
@@ -104,6 +104,10 @@ necessary, default C<Right>
 =item * first_row - jump to the first node in the tree, default C<Home>
 
 =item * last_row - jump to the last node in the tree, default C<End>
+
+=item * previous_page - up a full "page" (number of lines in widget), default C<PgUp>
+
+=item * next_page - up a full "page" (number of lines in widget), default C<PgDown>
 
 =back
 
@@ -250,7 +254,7 @@ a simple example of a manually-driven adapter.
 sub new {
 	my $class = shift;
 	my %args = @_;
-	my $root = delete($args{root}) || Tree::DAG_Node->new({name => 'Root'});
+	my $root = delete($args{root}) || $class->node_class->new({name => 'Root'});
 	my $data = delete $args{data};
 	my $activate = delete $args{on_activate};
 	my $self = $class->SUPER::new(%args);
@@ -262,6 +266,8 @@ sub new {
 	$self->take_focus;
 	$self
 }
+
+sub { 'Tree::DAG_Node' }
 
 =head2 add_item_under_parent
 
@@ -320,7 +326,7 @@ sub add_item_under_parent {
 
 sub new_named_node {
 	my ($self, $name) = @_;
-	Tree::DAG_Node->new({
+	$self->node_class->new({
 		name => "$name",
 		attributes => {
 			open => 1
