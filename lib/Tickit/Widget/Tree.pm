@@ -580,13 +580,104 @@ sub scrolled {
 	$self->redraw;
 }
 
+=head2 expose_node
+
+Cause a redraw for the given node.
+
+=cut
+
+sub expose_node {
+	my ($self, $node) = @_;
+	$self->window->expose
+}
+
+sub top_node { my ($node) = shift->{root}->daughters; $node }
+
+sub render_to_rb {
+	my $self = shift;
+	my ($rb, $rect) = @_;
+	my $win = $self->window;
+
+	my $erase_pen = $self->get_style_pen;
+	my $regular_label_pen = $self->get_style_pen('label');
+	my $highlight_pen = $self->get_style_pen('highlight');
+
+	my $highlight_node = $self->highlight_node;
+
+	$log->debugf("Rendering all lines from %s", $rect);
+	my $line = 0;
+	$self->iterate_nodes(
+		$self->top_node,
+		sub {
+			my ($node, $line, $depth) = @_;
+			return 1 unless $line >= $rect->top;
+			return 0 if $line > $rect->bottom;
+
+			# Since we may be rendering the label from other methods, let's just start
+			# by erasing everything so we don't have to chase around trying to work out
+			# who drew what where and when.
+			$rb->erase_at($line, $rect->left, $rect->cols, $regular_label_pen);
+
+			# If we've run out of nodes, erase the rest of the rendering area and bail out early
+			unless($node && !$node->is_root) {
+				$rb->eraserect(
+					Tickit::Rect->new(
+						top => $line,
+						left => $rect->left,
+						right => $rect->right,
+						bottom => $rect->bottom,
+					),
+					$erase_pen
+				);
+				return 0
+			}
+
+			# Render this node's label.
+			$rb->text_at(
+				$line,
+				1 + 3 * $depth,
+				$node->name,
+				($highlight_node == $node)
+				? $highlight_pen
+				: $regular_label_pen
+			);
+		}
+	);
+}
+
+sub iterate_nodes {
+	my ($self, $node, $code) = @_;
+	my $depth = $node->depth;
+	my $line = 0;
+	while($code->($node, $line++, $depth)) {
+		# Tree::DAG_Node
+		# Iterate into node if we're open, but only if there's any nodes under it
+		if($node->is_open && $node->daughters) {
+			($node) = $node->daughters;
+			++$depth;
+		} else {
+			# Waltz up and right until we find a candidate for "next" node
+			while(!$node->is_root) {
+				if($node->right_sister) {
+					$node = $node->right_sister;
+					last;
+				}
+				$node = $node->mother;
+			}
+			# At this point we may have hit the root node. That's fine, we'll bail out
+			# on the next iteration if so.
+			$depth = $node->depth;
+		}
+	}
+}
+
 =head2 render_to_rb
 
 Render method. Used internally.
 
 =cut
 
-sub render_to_rb {
+sub render_to_rb_old {
 	my $self = shift;
 	my ($rb, $rect) = @_;
 	my $win = $self->window;
