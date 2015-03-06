@@ -40,24 +40,31 @@ sub recurse:method {
 
 =head2 open
 
-Opens this node.
+Opens this node. Will activate the adapter if we have one.
+
+Returns C<$self>.
 
 =cut
 
 sub open {
 	$_[0]->attributes->{open} = 1;
+	$_[0]->prepare_adapter;
 	$_[0]->tree->expose_node($_[0]);
 	$_[0]
 }
 
 =head2 close
 
-Closes this node.
+Closes this node. If we have an adapter attached, this will unsubscribe from
+notifications.
+
+Returns C<$self>.
 
 =cut
 
 sub close {
 	$_[0]->attributes->{open} = 0;
+	$_[0]->clear_old_adapter;
 	$_[0]->tree->expose_node($_[0]);
 	$_[0]
 }
@@ -94,9 +101,6 @@ sub adapter_for_node {
 	# so detach gracefully before proceeding any further.
 	$self->clear_old_adapter;
 
-	# Things could get mighty confusing if we have entries already. Let's not do that.
-	$self->clear_daughters;
-
 	# Allow setting an adapter manually - we also allowing clearing an existing adapter.
 	# When removing an adapter, we'll return this node to 'static' state.
 	if(@_) {
@@ -119,7 +123,7 @@ sub adapter_for_node {
 
 	# Okay, now we have an adapter, we need to subscribe to all the events, applying
 	# each change to the tree and requesting a refresh in the process.
-	$self->prepare_adapter($tree);
+	$self->prepare_adapter($tree) if $self->is_open;
 
 	$self->attributes->{adapter}
 }
@@ -131,15 +135,20 @@ Attaches events and prepopulates node children when a new adapter is added.
 =cut
 
 sub prepare_adapter {
-	my ($self, $tree) = @_;
-	my $adapter = $self->attributes->{adapter};
-	return $self->prepare_adapter_list($tree, $adapter) if $adapter->isa('Adapter::Async::OrderedList');
-	return $self->prepare_adapter_map($tree, $adapter) if $adapter->isa('Adapter::Async::UnorderedMap');
+	my ($self) = @_;
+	my $adapter = $self->attributes->{adapter} or return Future->done;
+
+	# Things could get mighty confusing if we have entries already. Let's not do that.
+	$self->clear_daughters;
+
+	return $self->prepare_adapter_list($adapter) if $adapter->isa('Adapter::Async::OrderedList');
+	return $self->prepare_adapter_map($adapter) if $adapter->isa('Adapter::Async::UnorderedMap');
 	die "unhandled adapter type $adapter";
 }
 
 sub prepare_adapter_map {
-	my ($self, $tree, $adapter) = @_;
+	my ($self, $adapter) = @_;
+	my $tree = $self->tree;
 	Scalar::Util::weaken(my $n = $self);
 	Scalar::Util::weaken(my $widget = $tree);
 	my $lines = $tree->window ? $tree->window->lines : 10;
@@ -153,15 +162,18 @@ sub prepare_adapter_map {
 			}
 			my @nodes = $n->daughters;
 			my $new = $tree->nodes_from_data($k);
-			$log->tracef("Had %s after adding %s", $new, $k);
+			$new->close;
+			# $log->tracef("Had %s after adding %s", $new, $k);
 			$new->set_daughters($tree->nodes_from_data($v));
-			push @nodes, $new;
-			$n->set_daughters(sort_by { $_->name } $new, @nodes);
+			@nodes = sort_by { $_->name } $new, @nodes;
+			splice @nodes, $lines if @nodes > $lines;
+			$n->set_daughters(@nodes);
 			$widget->redraw; 1
 		} or do {
 			$log->errorf("Exception on add - $@");
 		}
 	};
+	$self->attributes->{updating} = 1;
 	$adapter->bus->subscribe_to_event(
 		my @ev = (
 			clear => sub {
@@ -171,11 +183,13 @@ sub prepare_adapter_map {
 			},
 			set_key => sub {
 				my ($ev, $k, $v) = @_;
+				return if $self->attributes->{updating};
 				return $add->($k => $v) if $n->daughters < $lines;
 				return $add->($k => $v) if ($n->daughters)[-1] gt $k;
 			},
 			delete_key => sub {
 				my ($ev, $k, $v) = @_;
+				return if $self->attributes->{updating};
 				eval {
 					my @nodes = $n->daughters;
 					List::UtilsBy::extract_by { $_ == $v } @nodes;
@@ -187,11 +201,27 @@ sub prepare_adapter_map {
 			},
 		)
 	);
-	retain_future($adapter->each($add));
+	push @{$self->attributes->{adapter_events}}, $adapter->bus, @ev;
+	my $count = 0;
+	retain_future(
+		$adapter->each(sub {
+			my ($k, $v) = @_;
+			if($count < $lines) {
+				++$count;
+				return $add->($k => $v);
+			}
+			if(($n->daughters)[-1] gt $k) {
+				return $add->($k => $v);
+			}
+		})->on_ready(sub {
+			$self->attributes->{updating} = 0;
+		})
+	);
 }
 
 sub prepare_adapter_list {
-	my ($self, $tree, $adapter) = @_;
+	my ($self, $adapter) = @_;
+	my $tree = $self->tree;
 	my $lines = $tree->window ? $tree->window->lines : 10;
 	Scalar::Util::weaken(my $n = $self);
 	Scalar::Util::weaken(my $widget = $tree);
@@ -200,6 +230,7 @@ sub prepare_adapter_list {
 			clear => sub {
 				$n->clear_daughters;
 				# FIXME slow
+				$tree->expose_node($n);
 				$widget->redraw;
 			},
 			splice => sub {
