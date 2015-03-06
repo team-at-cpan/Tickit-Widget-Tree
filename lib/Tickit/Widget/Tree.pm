@@ -561,14 +561,16 @@ sub scroll_to_node {
 	# Tree::DAG_Node
 	if($node->is_before($self->top_node)) {
 		# We have to scroll up, because the target node is above the current top node
+		$log->tracef("Node %s is above our current top %s, must scroll", map $_->to_string, $node, $self->top_node);
 		$self->top_node($node);
-		$self->expose;
+		$self->window->expose;
 		return $self;
 	}
 	if($node->is_after($self->bottom_node)) {
 		# We have to scroll down, because the target node is below the current bottom node
+		$log->tracef("Node %s is below our current bottom %s, must scroll", map $_->to_string, $node, $self->bottom_node);
 		$self->bottom_node($node);
-		$self->expose;
+		$self->window->expose;
 		return $self;
 	}
 
