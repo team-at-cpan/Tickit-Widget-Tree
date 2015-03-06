@@ -393,13 +393,17 @@ sub render_to_rb {
 
 		# Our label - root isn't shown, and we don't want a blank
 		# line at the top either, so we don't update the pointer for root
-		unless($node->is_root) {
+		if($node->is_root) {
+			# Bring the initial line down from the top of the window, so we don't start with
+			# an isolated line segment
+			$rb->vline_at(-1, 0, 1, LINE_SINGLE, $line_pen);
+		} else {
 			# We only need to draw this if we're inside the rendering area
 			if($start_y >= $top) {
 				$rb->hline_at(
 					$start_y,
 					1 + 3 * ($depth - 1),
-					(3 * $depth) - ($has_children ? 1 : 0),
+					(3 * $depth) - 1, # ($has_children ? 1 : 0),
 					LINE_SINGLE,
 					$line_pen,
 				) if $depth;
