@@ -619,15 +619,17 @@ sub update_visible_nodes_from_bottom {
 	my $win = $self->window or return $self;
 	my $lines = $win->lines;
 	my $node = $self->{bottom_node};
-	while($lines--) {
+	while(--$lines) {
+		$log->tracef("Lines %d, this node %s", $lines, $node->to_string);
 		$node = $node->prev;
 		$node->lines($lines);
 		last if $node->is_root;
 	}
-	$self->{top_node} = $node;
+	$log->tracef("Top node %s with %d lines remaining", $node->to_string, $lines);
 	if($node->is_root) {
-		#
+		($self->{top_node}) = $node->daughters;
 	} else {
+		$self->{top_node} = $node;
 		$node->mother->start_offset($node->my_daughter_index)
 	}
 	$self
@@ -643,10 +645,17 @@ sub update_visible_nodes_from_top {
 	my $lines = $win->lines;
 	my $node = $self->{top_node};
 	$node->mother->start_offset($node->my_daughter_index) unless $node->is_root;
-	while($lines--) {
-		$node = $node->next;
+	while(--$lines) {
+		$node = $node->next or last;
 		$node->lines($lines);
 		last if $node->is_root;
+	}
+	$node ||= $self->root;
+	$log->tracef("Bottom node %s with %d lines remaining", $node->to_string, $lines);
+	if($node->is_root) {
+		($self->{bottom_node}) = $node->daughters;
+	} else {
+		$self->{bottom_node} = $node;
 	}
 	$self
 }
