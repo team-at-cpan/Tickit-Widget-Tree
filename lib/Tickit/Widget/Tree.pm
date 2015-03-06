@@ -5,8 +5,6 @@ use warnings;
 
 use parent qw(Tickit::Widget);
 
-use constant EVENT_DISPATCH_ON_FALLBACK => 0;
-
 our $VERSION = '0.115';
 
 =head1 NAME
