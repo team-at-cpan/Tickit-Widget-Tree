@@ -6,6 +6,8 @@ requires 'Tickit', '>= 0.48';
 requires 'Tickit::Widget', 0;
 requires 'Log::Any', 0;
 requires 'List::UtilsBy', 0;
+requires 'Future', '>= 0.30';
+requires 'Variable::Disposition', '>= 0.003';
 
 on 'test' => sub {
 	requires 'Test::More', '>= 0.98';
