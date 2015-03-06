@@ -33,9 +33,9 @@ sub tree(&;$) {
 
 	cmp_deeply($render->(10), [ ], 'empty');
 	$adapter->push(['x']);
-	cmp_deeply($render->(10), ['x'], 'empty');
+	cmp_deeply($render->(10), ['x'], 'single element');
 	$adapter->push([1..10]);
-	cmp_deeply($render->(10), ['x', 1..9], 'empty');
+	cmp_deeply($render->(10), ['x', 1..9], 'overflow by one');
 }
 
 done_testing;
