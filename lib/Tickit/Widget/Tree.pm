@@ -36,6 +36,7 @@ is not backward compatible.
 
 use Tickit::RenderBuffer qw(LINE_SINGLE CAP_START CAP_END CAP_BOTH);
 use Tree::DAG_Node;
+use Scalar::Util;
 use List::Util qw(max);
 use Tickit::Utils qw(textwidth);
 use Tickit::Style;
