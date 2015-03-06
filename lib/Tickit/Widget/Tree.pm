@@ -1220,6 +1220,25 @@ sub key_previous_row {
 	1
 }
 
+=head2 key_previous_page
+
+Go up a node.
+
+=cut
+
+sub key_previous_page {
+	my $self = shift;
+	my $win = $self->window or return 1;
+	my $node = $self->highlight_node;
+	$node = $node->prev || $node for 2..$self->window->lines;
+
+	# if we've gone past the start, we're at the top
+	($node) = $node->daughters if $node->is_root;
+	$self->highlight_node($node);
+	$self->redraw;
+	1
+}
+
 =head2 key_next_row
 
 Move down a node.
@@ -1228,7 +1247,28 @@ Move down a node.
 
 sub key_next_row {
 	my $self = shift;
-	my $node = $self->highlight_node->next;
+	my $node = $self->highlight_node->next or return 1;
+
+	# if we've gone past the start, we're already at the bottom so we don't
+	# do anything - just bail out here
+	return 1 if $node->is_root;
+
+	$self->highlight_node($node);
+	$self->redraw;
+	1
+}
+
+=head2 key_next_page
+
+Move down a node.
+
+=cut
+
+sub key_next_page {
+	my $self = shift;
+	my $win = $self->window or return 1;
+	my $node = $self->highlight_node;
+	$node = $node->next || $node for 2..$win->lines;
 
 	# if we've gone past the start, we're already at the bottom so we don't
 	# do anything - just bail out here
