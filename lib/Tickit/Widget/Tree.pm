@@ -283,14 +283,14 @@ sub add_item_under_parent {
 	# Adapters are special
 	if(Scalar::Util::blessed($item)) {
 		if($item->isa('Adapter::Async::OrderedList')) {
-			$self->adapter_for_node($parent => $item);
+			$parent->adapter_for_node($self => $item);
 			return $parent;
 		} elsif($item->isa('Adapter::Async::UnorderedMap')) {
-			$self->adapter_for_node($parent => $item);
+			$parent->adapter_for_node($self => $item);
 			return $parent;
 		} elsif($item->isa('Tickit::Widget::Tree::AdapterTransformation')) {
 			$log->debugf("We have a transformation %s", $item);
-			$self->adapter_for_node($parent => $item->adapter, $item);
+			$parent->adapter_for_node($self => $item->adapter, $item);
 			return $parent;
 		}
 	}
@@ -391,141 +391,6 @@ sub nodes_from_data {
 		}
 	}
 	return $self->new_named_node($item);
-}
-
-=head2 adapter_for_node
-
-Returns or sets an L<Adapter::Async::OrderedList> for the given node.
-
-This is the primary mechanism for making a node "live" - once it has been
-attached to an adapter, the child nodes will update according to events on
-the adapter.
-
- $node = $tree->node;
- $node->adapter_for_node->push([1,2,3]);
-
-=cut
-
-sub adapter_for_node {
-	my $self = shift;
-	my $node = shift;
-	return $node->attributes->{adapter} if $node->attributes->{adapter} && !@_;
-
-	# We previously had an adapter, and as such may have stashed some event handlers,
-	# so detach gracefully before proceeding any further.
-	$node->attributes->{adapter_events} ||= [];
-	if($node->attributes->{adapter}) {
-		my ($bus, @ev) = splice @{$node->attributes->{adapter_events}}, 0;
-		$bus->unsubscribe_from_event(@ev) if $bus && @ev;
-	}
-
-	$node->attributes->{adapter} = shift if @_;
-	$node->attributes->{adapter} //= do {
-		my $adapter = Adapter::Async::OrderedList::Array->new(
-			# TODO should populate from existing child nodes
-			data => []
-		);
-	};
-	$node->attributes->{transformation} = shift if @_;
-
-	# Okay, now we have an adapter, we need to subscribe to all the events, applying
-	# each change to the tree and requesting a refresh in the process.
-	if($node->attributes->{adapter}->isa('Adapter::Async::OrderedList')) {
-		Scalar::Util::weaken(my $n = $node);
-		Scalar::Util::weaken(my $widget = $self);
-		$node->attributes->{adapter}->bus->subscribe_to_event(
-			my @ev = (
-				clear => sub {
-					# warn "clear!"
-					$n->set_daughters();
-					# FIXME slow
-					$widget->redraw;
-				},
-				splice => sub {
-					my ($ev, $start, $length, $added, $removed) = @_;
-					eval {
-						my @nodes = $n->daughters;
-						# add_item_under_parent
-						# $log->debugf("Splice in [%s]", $added);
-						my @add = map $self->nodes_from_data($_), @$added;
-						# $log->debugf("* [%s]", $_) for @add;
-						splice @nodes, $start, $length, @add;
-						$n->set_daughters(@nodes);
-						# FIXME slow
-						$widget->redraw; 1
-					} or do {
-						$log->errorf("Exception on splice - $@");
-					}
-				},
-				move => sub {
-					# warn "move!"
-					# FIXME uh...
-				},
-			)
-		);
-		push @{$node->attributes->{adapter_events}}, $node->attributes->{adapter}->bus, @ev;
-		{ # Initial population
-			my @nodes = $node->daughters;
-			$node->attributes->{adapter}->all(
-				on_item => sub {
-					my $item = shift;
-					# $log->debugf("Adding [%s] for initial population", $item);
-					my @expanded = $self->nodes_from_data($node);
-					# $log->debugf("* [%s]", $_) for @expanded;
-					push @nodes, @expanded
-				},
-			)->on_done(sub {
-				$node->set_daughters(@nodes);
-			});
-		}
-	} elsif($node->attributes->{adapter}->isa('Adapter::Async::UnorderedMap')) {
-		Scalar::Util::weaken(my $n = $node);
-		Scalar::Util::weaken(my $widget = $self);
-		my $add = sub {
-			my ($k, $v) = @_;
-			eval {
-				if(my $trans = $n->attributes->{transformation}) {
-					my $old_key = $k;
-					$k = $trans->key($k, $v, 0, $n->attributes->{adapter}, $self);
-					$v = $trans->item($k, $v, 0, $n->attributes->{adapter}, $self);
-				}
-				my @nodes = $n->daughters;
-				my $new = $self->nodes_from_data($k);
-				$new->set_daughters($self->nodes_from_data($v));
-				push @nodes, $new;
-				$n->set_daughters(sort_by { $_->name } $new, @nodes);
-				$widget->redraw; 1
-			} or do {
-				$log->errorf("Exception on add - $@");
-			}
-		};
-		$node->attributes->{adapter}->bus->subscribe_to_event(
-			my @ev = (
-				clear => sub {
-					$n->set_daughters();
-					# FIXME slow
-					$widget->redraw;
-				},
-				set_key => sub {
-					my ($ev, $k, $v) = @_;
-					$add->($k => $v);
-				},
-				delete_key => sub {
-					my ($ev, $k, $v) = @_;
-					eval {
-						my @nodes = $n->daughters;
-						List::UtilsBy::extract_by { $_ == $v } @nodes;
-						$n->set_daughters(@nodes);
-						$widget->redraw; 1
-					} or do {
-						$log->errorf("Exception on splice - $@");
-					}
-				},
-			)
-		);
-		retain_future($node->attributes->{adapter}->each($add));
-	}
-	$node->attributes->{adapter}
 }
 
 =head2 position_adapter
