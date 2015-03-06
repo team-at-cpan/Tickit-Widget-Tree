@@ -597,10 +597,12 @@ sub render_to_rb {
 	my $self = shift;
 	my ($rb, $rect) = @_;
 	my $win = $self->window;
+	$rb->clip($rect);
 
 	my $erase_pen = $self->get_style_pen;
 	my $regular_label_pen = $self->get_style_pen('label');
 	my $highlight_pen = $self->get_style_pen('highlight');
+	my $line_pen = $self->get_style_pen;
 
 	my $highlight_node = $self->highlight_node;
 
@@ -622,9 +624,9 @@ sub render_to_rb {
 			unless($node && !$node->is_root) {
 				$rb->eraserect(
 					Tickit::Rect->new(
-						top => $line,
-						left => $rect->left,
-						right => $rect->right,
+						top    => $line,
+						left   => $rect->left,
+						right  => $rect->right,
 						bottom => $rect->bottom,
 					),
 					$erase_pen
@@ -641,6 +643,16 @@ sub render_to_rb {
 				? $highlight_pen
 				: $regular_label_pen
 			);
+
+			$rb->hline_at(
+				$line,
+				1 + 3 * ($depth - 1),
+				(3 * $depth) - 1, # ($has_children ? 1 : 0),
+				LINE_SINGLE,
+				$line_pen,
+			) if $depth;
+
+			return 1;
 		}
 	);
 }
@@ -649,7 +661,7 @@ sub iterate_nodes {
 	my ($self, $node, $code) = @_;
 	my $depth = $node->depth;
 	my $line = 0;
-	while($code->($node, $line++, $depth)) {
+	while(eval { $code->($node, $line++, $depth) } // warn "failed? $@") {
 		# Tree::DAG_Node
 		# Iterate into node if we're open, but only if there's any nodes under it
 		if($node->is_open && $node->daughters) {
