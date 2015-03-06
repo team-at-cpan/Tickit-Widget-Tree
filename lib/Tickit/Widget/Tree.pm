@@ -662,6 +662,102 @@ sub expose_node {
 
 sub top_node { my ($node) = shift->{root}->daughters; $node }
 
+=head2 render_scrollbar
+
+Render the scrollbar.
+
+=cut
+
+sub render_vertical_scrollbar {
+	my ($self, $rb, $rect) = @_;
+	return $self unless my $win = $self->window;
+
+	# Trim to far-right edge
+	$rect = $rect->intersect(
+		Tickit::Rect->new(
+			top    => $rect->top,
+			left   => $rect->right,
+			right  => $rect->right
+			bottom => $rect->bottom,
+		)
+	) or return $self;
+
+	my $h = $win->lines;
+
+	# Need to clear any line content first, since we may be overwriting part of
+	# the previous scrollbar rendering here
+	$rb->eraserect($rect);
+	if(my ($min, $max) = $self->scroll_rows) {
+		# Scrollbar should be shown, since we don't have all rows visible on the screen at once
+		$rb->vline_at($self->header_lines, $min - 1, $cols, LINE_SINGLE, $self->get_style_pen('scrollbar'), CAP_BOTH) if $min > 1;
+		$rb->vline_at($min, $max, $cols, LINE_DOUBLE, $self->get_style_pen('scroll'), CAP_BOTH);
+		$rb->vline_at($max + 1, $h, $cols, LINE_SINGLE, $self->get_style_pen('scrollbar'), CAP_BOTH) if $max < $h;
+	} else {
+		# Placeholder scrollbar - just render it as empty
+		$rb->vline_at($self->header_lines, $h, $cols, LINE_SINGLE, $self->get_style_pen('scrollbar'), CAP_BOTH);
+	}
+}
+
+=head2 sb_height
+
+Current scrollbar height.
+
+=cut
+
+sub sb_height {
+	my $self = shift;
+	my $ext = $self->scroll_dimension;
+	my $max = $self->row_count - $ext;
+	return 1 unless $max;
+	return floor(0.5 + ($ext * $ext / $max));
+}
+
+=head2 scroll_rows
+
+Positions of the scrollbar indicator.
+
+=cut
+
+sub scroll_rows {
+	my $self = shift;
+	my $cur = $self->scroll_position;
+	my $ext = $self->scroll_dimension;
+	my $max = $self->row_count - $ext;
+	return unless $max;
+	my $y = floor(0.5 + ($cur * ($ext - $self->sb_height) / $max));
+	return $y, $y + $self->sb_height;
+}
+
+=head2 active_scrollbar_rect
+
+Rectangle representing the area covered by the current scrollbar.
+
+=cut
+
+sub active_scrollbar_rect {
+	my $self = shift;
+	return unless my ($start, $end) = $self->scroll_rows;
+	Tickit::Rect->new(
+		top    =>$start,
+		bottom => 2 + $end,
+		left   => $self->window->cols - 1,
+		cols   => 1,
+	);
+}
+
+=head2 scroll_dimension
+
+Size of the vertical scrollbar.
+
+=cut
+
+sub scroll_dimension {
+	my $self = shift;
+	return 1 unless my $win = $self->window;
+	$win->lines;
+}
+
+
 sub render_to_rb {
 	my $self = shift;
 	my ($rb, $rect) = @_;
