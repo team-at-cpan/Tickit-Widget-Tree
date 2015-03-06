@@ -3,7 +3,7 @@ package Tickit::Widget::Tree;
 use strict;
 use warnings;
 
-use parent qw(Tickit::Widget Mixin::Event::Dispatch);
+use parent qw(Tickit::Widget);
 
 use constant EVENT_DISPATCH_ON_FALLBACK => 0;
 
@@ -43,6 +43,8 @@ use Tickit::Utils qw(textwidth);
 use Tickit::Style;
 
 use Variable::Disposition qw(retain_future);
+
+use Mixin::Event::Dispatch::Bus;
 
 use Log::Any qw($log);
 
@@ -1026,6 +1028,13 @@ sub key_activate {
 	$self->invoke_event(activate => $self->highlight_node);
 	1
 }
+
+sub bus { shift->{bus} //= Mixin::Event::Dispatch::Bus->new }
+
+# Legacy support
+
+sub subscribe_to_event { shift->bus->subscribe_to_event(@_) }
+sub unsubscribe_from_event { shift->bus->unsubscribe_from_event(@_) }
 
 1;
 
